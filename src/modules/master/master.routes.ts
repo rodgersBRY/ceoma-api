@@ -5,20 +5,37 @@ import { masterController } from "./master.controller.js";
 
 export const masterRouter = Router();
 
-masterRouter.post("/suppliers", asyncHandler(masterController.createSupplier.bind(masterController)));
-masterRouter.get("/suppliers", asyncHandler(masterController.listSuppliers.bind(masterController)));
+masterRouter
+  .route("/suppliers")
+  .get(asyncHandler(masterController.listSuppliers.bind(masterController)))
+  .post(asyncHandler(masterController.createSupplier.bind(masterController)));
 
-masterRouter.post("/buyers", asyncHandler(masterController.createBuyer.bind(masterController)));
-masterRouter.get("/buyers", asyncHandler(masterController.listBuyers.bind(masterController)));
+masterRouter
+  .route("/suppliers/:id")
+  .put(asyncHandler(masterController.updateSupplier.bind(masterController)))
+  .delete(asyncHandler(masterController.deleteSupplier.bind(masterController)));
 
-masterRouter.post(
-  "/warehouses",
-  asyncHandler(masterController.createWarehouse.bind(masterController)),
-);
-masterRouter.get("/warehouses", asyncHandler(masterController.listWarehouses.bind(masterController)));
+masterRouter
+  .route("/buyers")
+  .get(asyncHandler(masterController.listBuyers.bind(masterController)))
+  .post(asyncHandler(masterController.createBuyer.bind(masterController)));
 
-masterRouter.post("/grades", asyncHandler(masterController.createGrade.bind(masterController)));
-masterRouter.get("/grades", asyncHandler(masterController.listGrades.bind(masterController)));
+masterRouter
+  .route("/buyers/:id")
+  .put(asyncHandler(masterController.updateBuyer.bind(masterController)))
+  .delete(asyncHandler(masterController.deleteBuyer.bind(masterController)));
 
-masterRouter.post("/bag-types", asyncHandler(masterController.createBagType.bind(masterController)));
-masterRouter.get("/bag-types", asyncHandler(masterController.listBagTypes.bind(masterController)));
+masterRouter
+  .route("/warehouses")
+  .get(asyncHandler(masterController.listWarehouses.bind(masterController)))
+  .post(asyncHandler(masterController.createWarehouse.bind(masterController)));
+
+masterRouter
+  .route("/grades")
+  .get(asyncHandler(masterController.listGrades.bind(masterController)))
+  .post(asyncHandler(masterController.createGrade.bind(masterController)));
+
+masterRouter
+  .route("/bag-types")
+  .get(asyncHandler(masterController.listBagTypes.bind(masterController)))
+  .post(asyncHandler(masterController.createBagType.bind(masterController)));
