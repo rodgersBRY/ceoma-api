@@ -21,14 +21,24 @@ Owns core reference data used by all transactional modules:
 
 - `POST /api/v1/master/suppliers`
 - `GET /api/v1/master/suppliers`
+- `PUT /api/v1/master/suppliers/:id` (admin only)
+- `DELETE /api/v1/master/suppliers/:id` (admin only)
 - `POST /api/v1/master/buyers`
 - `GET /api/v1/master/buyers`
+- `PUT /api/v1/master/buyers/:id` (admin only)
+- `DELETE /api/v1/master/buyers/:id` (admin only)
 - `POST /api/v1/master/warehouses`
 - `GET /api/v1/master/warehouses`
+- `PUT /api/v1/master/warehouses/:id` (admin only)
+- `DELETE /api/v1/master/warehouses/:id` (admin only)
 - `POST /api/v1/master/grades`
 - `GET /api/v1/master/grades`
+- `PUT /api/v1/master/grades/:id` (admin only)
+- `DELETE /api/v1/master/grades/:id` (admin only)
 - `POST /api/v1/master/bag-types`
 - `GET /api/v1/master/bag-types`
+- `PUT /api/v1/master/bag-types/:id` (admin only)
+- `DELETE /api/v1/master/bag-types/:id` (admin only)
 
 ## Configuration Notes
 

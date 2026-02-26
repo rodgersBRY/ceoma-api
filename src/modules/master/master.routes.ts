@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { asyncHandler } from "../../common/middleware/asyncHandler.js";
+import { authorize } from "../../common/middleware/auth.js";
 import { masterController } from "./master.controller.js";
 
 export const masterRouter = Router();
@@ -12,8 +13,8 @@ masterRouter
 
 masterRouter
   .route("/suppliers/:id")
-  .put(asyncHandler(masterController.updateSupplier.bind(masterController)))
-  .delete(asyncHandler(masterController.deleteSupplier.bind(masterController)));
+  .put(authorize("admin"), asyncHandler(masterController.updateSupplier.bind(masterController)))
+  .delete(authorize("admin"), asyncHandler(masterController.deleteSupplier.bind(masterController)));
 
 masterRouter
   .route("/buyers")
@@ -22,8 +23,8 @@ masterRouter
 
 masterRouter
   .route("/buyers/:id")
-  .put(asyncHandler(masterController.updateBuyer.bind(masterController)))
-  .delete(asyncHandler(masterController.deleteBuyer.bind(masterController)));
+  .put(authorize("admin"), asyncHandler(masterController.updateBuyer.bind(masterController)))
+  .delete(authorize("admin"), asyncHandler(masterController.deleteBuyer.bind(masterController)));
 
 masterRouter
   .route("/warehouses")
@@ -31,11 +32,26 @@ masterRouter
   .post(asyncHandler(masterController.createWarehouse.bind(masterController)));
 
 masterRouter
+  .route("/warehouses/:id")
+  .put(authorize("admin"), asyncHandler(masterController.updateWarehouse.bind(masterController)))
+  .delete(authorize("admin"), asyncHandler(masterController.deleteWarehouse.bind(masterController)));
+
+masterRouter
   .route("/grades")
   .get(asyncHandler(masterController.listGrades.bind(masterController)))
   .post(asyncHandler(masterController.createGrade.bind(masterController)));
 
 masterRouter
+  .route("/grades/:id")
+  .put(authorize("admin"), asyncHandler(masterController.updateGrade.bind(masterController)))
+  .delete(authorize("admin"), asyncHandler(masterController.deleteGrade.bind(masterController)));
+
+masterRouter
   .route("/bag-types")
   .get(asyncHandler(masterController.listBagTypes.bind(masterController)))
   .post(asyncHandler(masterController.createBagType.bind(masterController)));
+
+masterRouter
+  .route("/bag-types/:id")
+  .put(authorize("admin"), asyncHandler(masterController.updateBagType.bind(masterController)))
+  .delete(authorize("admin"), asyncHandler(masterController.deleteBagType.bind(masterController)));

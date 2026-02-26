@@ -3,6 +3,7 @@ import {
   buildPaginatedResult,
   escapeLikeQuery,
 } from "../../common/pagination.js";
+import { ApiError } from "../../common/errors/ApiError.js";
 import { query } from "../../db/pool.js";
 import {
   BagTypeInput,
@@ -38,6 +39,9 @@ export class MasterService {
       [input.name, input.type, input.country ?? null, id],
     );
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Supplier ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -47,6 +51,9 @@ export class MasterService {
       [id],
     );
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Supplier ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -111,6 +118,9 @@ export class MasterService {
       [input.name, input.country ?? null, id],
     );
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Buyer ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -119,6 +129,9 @@ export class MasterService {
       id,
     ]);
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Buyer ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -182,6 +195,9 @@ export class MasterService {
       [input.name, input.location ?? null, id],
     );
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Warehouse ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -191,6 +207,9 @@ export class MasterService {
       [id],
     );
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Warehouse ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -251,6 +270,9 @@ export class MasterService {
       [input.code, input.description ?? null, id],
     );
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Grade ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -259,6 +281,9 @@ export class MasterService {
       id,
     ]);
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Grade ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -321,6 +346,9 @@ export class MasterService {
       [input.name, input.weight_kg ?? null, id],
     );
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Bag type ${id} not found`);
+    }
     return result.rows[0];
   }
 
@@ -329,6 +357,9 @@ export class MasterService {
       id,
     ]);
 
+    if (result.rowCount === 0) {
+      throw new ApiError(404, `Bag type ${id} not found`);
+    }
     return result.rows[0];
   }
 
