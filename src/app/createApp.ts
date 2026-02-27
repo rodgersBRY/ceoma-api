@@ -18,13 +18,15 @@ export function createApp(): Express {
   app.disable("x-powered-by");
   app.set("trust proxy", env.trustProxy);
 
-  app.use(requestId);
-  app.use(requestLogger);
-  app.use(
-    helmet({
-      crossOriginResourcePolicy: false,
-    }),
-  );
+  app
+    .use(requestId)
+    .use(requestLogger)
+    .use(
+      helmet({
+        crossOriginResourcePolicy: false,
+      }),
+    );
+
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -32,7 +34,10 @@ export function createApp(): Express {
           callback(null, true);
           return;
         }
-        if (env.corsAllowedOrigins.length === 0 || env.corsAllowedOrigins.includes(origin)) {
+        if (
+          env.corsAllowedOrigins.length === 0 ||
+          env.corsAllowedOrigins.includes(origin)
+        ) {
           callback(null, true);
           return;
         }
@@ -42,17 +47,18 @@ export function createApp(): Express {
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),
   );
-  app.use(cookieParser());
-  app.use(express.json({ limit: env.requestBodyLimit }));
-  app.use(express.urlencoded({ extended: true, limit: env.requestBodyLimit }));
-  app.use(sanitizeInput);
-  app.use(apiRateLimiter);
-  app.use(csrfProtection);
+  app
+    .use(cookieParser())
+    .use(express.json({ limit: env.requestBodyLimit }))
+    .use(express.urlencoded({ extended: true, limit: env.requestBodyLimit }))
+    .use(sanitizeInput)
+    .use(apiRateLimiter)
+    .use(csrfProtection);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "ceoms-api" });
   });
-  
+
   app.get("/api/v1/health", (_req, res) => {
     res.json({ ok: true, service: "ceoms-api", version: "v1" });
   });
