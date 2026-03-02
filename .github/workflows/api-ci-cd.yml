@@ -106,6 +106,29 @@ jobs:
 
           echo "enabled=true" >> "$GITHUB_OUTPUT"
 
+      - name: Normalize SSH key
+        if: ${{ steps.deploy_gate.outputs.enabled == 'true' }}
+        id: ssh_key
+        env:
+          RAW_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          key="$RAW_SSH_KEY"
+          if [[ "$key" == *"\\n"* ]]; then
+            key="${key//\\n/$'\n'}"
+          fi
+
+          if ! grep -Eq "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----" <<< "$key"; then
+            echo "::error::VPS_SSH_KEY is not a valid private key block."
+            exit 1
+          fi
+
+          {
+            echo "private_key<<EOF"
+            echo "$key"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: SSH deploy
         if: ${{ steps.deploy_gate.outputs.enabled == 'true' }}
         uses: appleboy/ssh-action@v1.0.3
