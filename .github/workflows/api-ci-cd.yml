@@ -118,7 +118,7 @@ jobs:
             key="${key//\\n/$'\n'}"
           fi
 
-          if ! grep -Eq "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----" <<< "$key"; then
+          if ! grep -Eq -- "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----" <<< "$key"; then
             echo "::error::VPS_SSH_KEY is not a valid private key block."
             exit 1
           fi
