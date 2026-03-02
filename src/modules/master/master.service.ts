@@ -13,6 +13,18 @@ import {
   WarehouseInput,
 } from "./master.validation.js";
 
+type PgErrorLike = {
+  code?: string;
+};
+
+function throwReferenceConflict(error: unknown, entityName: string): never {
+  const pgError = error as PgErrorLike;
+  if (pgError.code === "23503") {
+    throw new ApiError(409, `${entityName} is in use and cannot be deleted`);
+  }
+  throw error;
+}
+
 export class MasterService {
   // SUPPLIER SERVICES
   async createSupplier(input: SupplierInput): Promise<unknown> {
@@ -49,7 +61,7 @@ export class MasterService {
     const result = await query(
       `DELETE FROM suppliers WHERE id = $1 RETURNING *`,
       [id],
-    );
+    ).catch((error: unknown) => throwReferenceConflict(error, "Supplier"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Supplier ${id} not found`);
@@ -127,7 +139,7 @@ export class MasterService {
   async deleteBuyer(id: number): Promise<unknown> {
     const result = await query(`DELETE FROM buyers WHERE id = $1 RETURNING *`, [
       id,
-    ]);
+    ]).catch((error: unknown) => throwReferenceConflict(error, "Buyer"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Buyer ${id} not found`);
@@ -205,7 +217,7 @@ export class MasterService {
     const result = await query(
       `DELETE FROM warehouses WHERE id = $1 RETURNING *`,
       [id],
-    );
+    ).catch((error: unknown) => throwReferenceConflict(error, "Warehouse"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Warehouse ${id} not found`);
@@ -279,7 +291,7 @@ export class MasterService {
   async deleteGrade(id: number): Promise<unknown> {
     const result = await query(`DELETE FROM grades WHERE id = $1 RETURNING *`, [
       id,
-    ]);
+    ]).catch((error: unknown) => throwReferenceConflict(error, "Grade"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Grade ${id} not found`);
@@ -355,7 +367,7 @@ export class MasterService {
   async deleteBagType(id: number): Promise<unknown> {
     const result = await query(`DELETE FROM bag_types WHERE id = $1 RETURNING *`, [
       id,
-    ]);
+    ]).catch((error: unknown) => throwReferenceConflict(error, "Bag type"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Bag type ${id} not found`);

@@ -10,6 +10,7 @@ import {
   logoutSchema,
   refreshSchema,
   registerSchema,
+  userStatusSchema,
 } from "./auth.validation.js";
 
 function requestMeta(req: Request): { ipAddress: string; userAgent: string } {
@@ -20,6 +21,14 @@ function requestMeta(req: Request): { ipAddress: string; userAgent: string } {
     ipAddress: req.ip ?? "unknown",
     userAgent,
   };
+}
+
+function parseUserId(rawValue: string | undefined): number {
+  const parsed = Number(rawValue);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ApiError(400, "userId must be a positive integer");
+  }
+  return parsed;
 }
 
 export class AuthController {
@@ -71,11 +80,31 @@ export class AuthController {
       throw new ApiError(401, "Authentication required");
     }
     const query = parseListQuery(req.query as Record<string, unknown>, {
-      allowedSortBy: ["created_at", "last_login_at", "email", "full_name", "role", "id", "is_active"],
+      allowedSortBy: [
+        "created_at",
+        "last_login_at",
+        "email",
+        "full_name",
+        "role",
+        "id",
+        "is_active",
+        "status",
+      ],
       defaultSortBy: "created_at",
     });
     const users = await authService.listUsers(req.auth, query);
     res.json(users);
+  }
+
+  async updateUserStatus(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
+
+    const userId = parseUserId(req.params.userId as string | undefined);
+    const payload = userStatusSchema.parse(req.body);
+    const updated = await authService.updateUserStatus(req.auth, userId, payload);
+    res.json(updated);
   }
 
   async issueCsrf(_req: Request, res: Response): Promise<void> {

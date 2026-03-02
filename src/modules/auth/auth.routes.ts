@@ -33,6 +33,12 @@ authRouter.get(
   authorize("admin"),
   asyncHandler(authController.listUsers.bind(authController)),
 );
+authRouter.patch(
+  "/users/:userId/status",
+  authenticate,
+  authorize("admin"),
+  asyncHandler(authController.updateUserStatus.bind(authController)),
+);
 authRouter.post(
   "/api-keys",
   authenticate,
