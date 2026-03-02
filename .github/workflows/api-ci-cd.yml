@@ -152,13 +152,30 @@ jobs:
               exit 1
             fi
 
+            pulled_image=false
             OVERRIDE_FILE="$(mktemp)"
             printf 'services:\n  api:\n    image: "%s"\n' "${API_IMAGE}" > "${OVERRIDE_FILE}"
 
-            echo "${{ secrets.GHCR_PAT }}" | "${DOCKER_CMD[@]}" login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
-            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod pull api
-            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod up -d --no-deps api
-            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod ps
+            if echo "${{ secrets.GHCR_PAT }}" | "${DOCKER_CMD[@]}" login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin; then
+              if "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod pull api; then
+                pulled_image=true
+                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod up -d --no-deps api
+                "${DOCKER_CMD[@]}" logout ghcr.io || true
+              else
+                echo "GHCR pull failed for ${API_IMAGE}. Falling back to local VPS build."
+              fi
+            else
+              echo "GHCR login failed. Falling back to local VPS build."
+            fi
+
+            if [ "${pulled_image}" != "true" ]; then
+              if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                git pull --ff-only origin main || echo "Warning: git pull failed; using current VPS checkout."
+              fi
+              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file .env.prod build api
+              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
+            fi
+
+            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file .env.prod ps
             curl -fsS http://localhost:4000/api/v1/health >/dev/null
-            "${DOCKER_CMD[@]}" logout ghcr.io
             rm -f "${OVERRIDE_FILE}"
