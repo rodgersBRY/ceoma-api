@@ -141,10 +141,28 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.VPS_API_DIR }}"
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
             export API_IMAGE="${{ needs.build-and-push.outputs.image_name }}:${{ github.sha }}"
-            docker compose -f docker-compose.prod.yml --env-file .env.prod pull api
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
-            docker compose -f docker-compose.prod.yml --env-file .env.prod ps
+            
+            if docker info >/dev/null 2>&1; then
+              DOCKER_CMD=(docker)
+            elif command -v sudo >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then
+              DOCKER_CMD=(sudo -E docker)
+            else
+              echo "Docker daemon is not accessible for user $(whoami). Add this user to docker group or allow passwordless sudo for docker."
+              exit 1
+            fi
+
+            OVERRIDE_FILE="$(mktemp)"
+            cat > "${OVERRIDE_FILE}" <<EOF
+            services:
+              api:
+                image: ${API_IMAGE}
+            EOF
+
+            echo "${{ secrets.GHCR_PAT }}" | "${DOCKER_CMD[@]}" login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod pull api
+            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod up -d --no-deps api
+            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod ps
             curl -fsS http://localhost:4000/api/v1/health >/dev/null
-            docker logout ghcr.io
+            "${DOCKER_CMD[@]}" logout ghcr.io
+            rm -f "${OVERRIDE_FILE}"
