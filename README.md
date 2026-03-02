@@ -315,3 +315,62 @@ npm run prisma:migrate:deploy
 - Shipment cannot over-fulfill contract quantity
 - Shipment status cannot move backwards
 - Shipment creation freezes a traceability snapshot for auditability
+
+## Production deploy runbook (Vercel web + VPS API)
+
+If changes work in development but not production, the VPS is usually running an older API container image.
+
+Immediate manual redeploy on VPS:
+
+```bash
+cd /opt/ceoms/api
+docker compose -f docker-compose.prod.yml --env-file .env.prod build --no-cache api
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --force-recreate api
+docker compose -f docker-compose.prod.yml --env-file .env.prod logs api --tail=100
+```
+
+Verify new routes exist:
+
+```bash
+curl -i http://localhost:4000/api/v1/health
+curl -i -X PATCH http://localhost:4000/api/v1/auth/users/1/status \
+  -H "content-type: application/json" \
+  -d '{"status":"active"}'
+```
+
+For route existence checks without auth, expected response is `401` (not `404`).
+
+## CI/CD automation for VPS deployment
+
+This repository includes:
+
+- GitHub workflow: `.github/workflows/api-ci-cd.yml`
+- Manual image redeploy script: `scripts/redeploy-prod.sh`
+
+Workflow behavior:
+
+1. Run `npm run check` and `npm run build`
+2. Build and push API image to GHCR
+3. SSH to VPS and redeploy API container using pushed image tag
+4. Run local health check on VPS (`/api/v1/health`)
+
+Required GitHub repository secrets:
+
+- `VPS_HOST`
+- `VPS_SSH_USER`
+- `VPS_SSH_KEY`
+- `VPS_API_DIR` (example: `/opt/ceoms/api`)
+- `GHCR_USER`
+- `GHCR_PAT` (PAT with `read:packages`)
+
+`docker-compose.prod.yml` supports image pinning using:
+
+- `API_IMAGE` (example: `ghcr.io/<org>/ceoms-api:<git-sha>`)
+
+You can manually redeploy any built image tag on VPS:
+
+```bash
+cd /opt/ceoms/api
+export API_IMAGE=ghcr.io/<org>/ceoms-api:<tag>
+./scripts/redeploy-prod.sh
+```
