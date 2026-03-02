@@ -25,6 +25,7 @@ import {
   LogoutInput,
   RefreshInput,
   RegisterInput,
+  UserStatusInput,
 } from "./auth.validation.js";
 
 type UserRow = {
@@ -41,6 +42,7 @@ type UserListRow = {
   email: string;
   full_name: string;
   role: UserRole;
+  status: "active" | "disabled";
   is_active: boolean;
   last_login_at: Date | null;
   created_at: Date;
@@ -287,11 +289,18 @@ export class AuthService {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const activeFilter = toBooleanFilter(listQuery.filters, "is_active");
+    const statusFilter = listQuery.filters.status;
     const roleFilter = listQuery.filters.role;
     const allowedRoles: UserRole[] = ["admin", "trader", "warehouse", "finance", "compliance"];
 
     if (activeFilter !== undefined) {
       values.push(activeFilter);
+      whereClauses.push(`is_active = $${values.length}`);
+    } else if (statusFilter) {
+      if (statusFilter !== "active" && statusFilter !== "disabled") {
+        throw new ApiError(400, "filter_status must be one of: active, disabled");
+      }
+      values.push(statusFilter === "active");
       whereClauses.push(`is_active = $${values.length}`);
     }
     if (roleFilter) {
@@ -320,6 +329,7 @@ export class AuthService {
         email,
         full_name,
         role,
+        CASE WHEN is_active THEN 'active' ELSE 'disabled' END AS status,
         is_active,
         last_login_at,
         created_at
@@ -331,6 +341,48 @@ export class AuthService {
       values,
     );
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
+  }
+
+  async updateUserStatus(
+    actor: AuthContext,
+    userId: number,
+    input: UserStatusInput,
+  ): Promise<Record<string, unknown>> {
+    if (actor.role !== "admin") {
+      throw new ApiError(403, "Only admin users can update account status");
+    }
+
+    const shouldBeActive = input.status === "active";
+    if (!shouldBeActive && actor.userId === userId) {
+      throw new ApiError(400, "You cannot disable your own account");
+    }
+
+    const result = await query<UserRow>(
+      `
+      UPDATE users
+      SET is_active = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, email, password_hash, full_name, role, is_active
+      `,
+      [shouldBeActive, userId],
+    );
+
+    if (result.rowCount === 0) {
+      throw new ApiError(404, "User not found");
+    }
+
+    if (!shouldBeActive) {
+      await query(
+        `
+        UPDATE user_sessions
+        SET revoked_at = NOW()
+        WHERE user_id = $1 AND revoked_at IS NULL
+        `,
+        [userId],
+      );
+    }
+
+    return mapUserPublic(result.rows[0]);
   }
 
   async createApiKey(

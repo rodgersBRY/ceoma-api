@@ -26,6 +26,7 @@ Provides API authentication and authorization controls:
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/auth/users` (admin)
+- `PATCH /api/v1/auth/users/:userId/status` (admin)
 - `POST /api/v1/auth/api-keys` (admin)
 - `GET /api/v1/auth/api-keys` (admin)
 - `PATCH /api/v1/auth/api-keys/:apiKeyId/revoke` (admin)

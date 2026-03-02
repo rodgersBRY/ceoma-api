@@ -268,14 +268,24 @@ npm run prisma:migrate:deploy
 - `PATCH /api/v1/auth/api-keys/:apiKeyId/revoke` (admin)
 - `POST /api/v1/master/suppliers`
 - `GET /api/v1/master/suppliers`
+- `PUT /api/v1/master/suppliers/:id` (admin)
+- `DELETE /api/v1/master/suppliers/:id` (admin)
 - `POST /api/v1/master/buyers`
 - `GET /api/v1/master/buyers`
+- `PUT /api/v1/master/buyers/:id` (admin)
+- `DELETE /api/v1/master/buyers/:id` (admin)
 - `POST /api/v1/master/warehouses`
 - `GET /api/v1/master/warehouses`
+- `PUT /api/v1/master/warehouses/:id` (admin)
+- `DELETE /api/v1/master/warehouses/:id` (admin)
 - `POST /api/v1/master/grades`
 - `GET /api/v1/master/grades`
+- `PUT /api/v1/master/grades/:id` (admin)
+- `DELETE /api/v1/master/grades/:id` (admin)
 - `POST /api/v1/master/bag-types`
 - `GET /api/v1/master/bag-types`
+- `PUT /api/v1/master/bag-types/:id` (admin)
+- `DELETE /api/v1/master/bag-types/:id` (admin)
 - `POST /api/v1/procurement/auction-lots`
 - `GET /api/v1/procurement/auction-lots`
 - `POST /api/v1/procurement/direct-agreements`

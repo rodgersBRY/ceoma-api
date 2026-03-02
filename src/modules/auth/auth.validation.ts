@@ -36,8 +36,13 @@ export const createApiKeySchema = z.object({
   expires_in_days: z.number().int().positive().max(365).optional(),
 });
 
+export const userStatusSchema = z.object({
+  status: z.enum(["active", "disabled"]),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type LogoutInput = z.infer<typeof logoutSchema>;
 export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
+export type UserStatusInput = z.infer<typeof userStatusSchema>;
