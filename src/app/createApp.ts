@@ -10,6 +10,7 @@ import { sanitizeInput } from "../common/middleware/sanitizeInput.js";
 import { requestId } from "../common/middleware/requestId.js";
 import { csrfProtection } from "../common/middleware/csrfProtection.js";
 import { errorHandler } from "../common/middleware/errorHandler.js";
+import { ApiError } from "../common/errors/ApiError.js";
 import { registerRoutes } from "./registerRoutes.js";
 
 export function createApp(): Express {
@@ -64,6 +65,11 @@ export function createApp(): Express {
   });
 
   registerRoutes(app);
+
+  app.use((req, _res, next) => {
+    next(new ApiError(404, `Cannot ${req.method} ${req.originalUrl}`));
+  });
+
   app.use(errorHandler);
 
   return app;
