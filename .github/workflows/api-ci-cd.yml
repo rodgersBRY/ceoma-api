@@ -153,11 +153,7 @@ jobs:
             fi
 
             OVERRIDE_FILE="$(mktemp)"
-            cat > "${OVERRIDE_FILE}" <<EOF
-            services:
-              api:
-                image: ${API_IMAGE}
-            EOF
+            printf 'services:\n  api:\n    image: "%s"\n' "${API_IMAGE}" > "${OVERRIDE_FILE}"
 
             echo "${{ secrets.GHCR_PAT }}" | "${DOCKER_CMD[@]}" login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
             "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod pull api
