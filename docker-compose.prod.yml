@@ -26,7 +26,7 @@ services:
       dockerfile: Dockerfile
     container_name: ceoms-api
     restart: unless-stopped
-    env_file: .env
+    env_file: ${API_ENV_FILE:-.env}
     environment:
       NODE_ENV: production
       # Overrides the DATABASE_URL in api/.env so it resolves to the
