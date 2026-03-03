@@ -13,14 +13,14 @@ if [[ ! -f ".env.prod" ]]; then
 fi
 
 echo "[deploy] Pulling API image ${API_IMAGE}"
-docker compose -f docker-compose.prod.yml --env-file .env.prod pull api
+docker compose -f docker-compose.prod.yml pull api
 
 echo "[deploy] Restarting API container"
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
+docker compose -f docker-compose.prod.yml up -d --no-deps api
 
 echo "[deploy] API health check"
 curl -fsS http://localhost:4000/api/v1/health
 echo
 
 echo "[deploy] Running containers"
-docker compose -f docker-compose.prod.yml --env-file .env.prod ps
+docker compose -f docker-compose.prod.yml ps
