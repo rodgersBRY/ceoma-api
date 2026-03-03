@@ -155,7 +155,7 @@ jobs:
             fi
 
             echo "Capturing currently running image..."
-            CURRENT_CONTAINER_ID="$("${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file .env.prod ps -q api || true)"
+            CURRENT_CONTAINER_ID="$("${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml ps -q api || true)"
 
             if [ -n "$CURRENT_CONTAINER_ID" ]; then
               PREVIOUS_IMAGE="$("${DOCKER_CMD[@]}" inspect "$CURRENT_CONTAINER_ID" --format='{{.Config.Image}}')"
