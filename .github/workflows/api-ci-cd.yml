@@ -170,9 +170,9 @@ jobs:
             printf 'services:\n  api:\n    image: "%s"\n' "${API_IMAGE}" > "${OVERRIDE_FILE}"
 
             if echo "${{ secrets.GHCR_PAT }}" | "${DOCKER_CMD[@]}" login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin; then
-              if "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod pull api; then
+              if "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml pull api; then
                 pulled_image=true
-                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file .env.prod up -d --no-deps api
+                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml up -d --no-deps api
                 "${DOCKER_CMD[@]}" logout ghcr.io || true
               else
                 echo "Image pull failed. Falling back to local build."
@@ -185,8 +185,8 @@ jobs:
               if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
                 git pull --ff-only origin main || echo "Warning: git pull failed."
               fi
-              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file .env.prod build api
-              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
+              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml build api
+              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml up -d --no-deps api
             fi
 
             echo "Running health check..."
@@ -209,7 +209,7 @@ jobs:
                 echo "Rolling back to $PREVIOUS_IMAGE"
                 ROLLBACK_OVERRIDE="$(mktemp)"
                 printf 'services:\n  api:\n    image: "%s"\n' "${PREVIOUS_IMAGE}" > "${ROLLBACK_OVERRIDE}"
-                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${ROLLBACK_OVERRIDE}" --env-file .env.prod up -d --no-deps api
+                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${ROLLBACK_OVERRIDE}" up -d --no-deps api
                 rm -f "${ROLLBACK_OVERRIDE}"
                 echo "Rollback completed."
               else
@@ -221,5 +221,5 @@ jobs:
             fi
 
             echo "Deployment successful."
-            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file .env.prod ps
+            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml ps
             rm -f "${OVERRIDE_FILE}"
