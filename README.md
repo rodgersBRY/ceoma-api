@@ -324,9 +324,9 @@ Immediate manual redeploy on VPS:
 
 ```bash
 cd /opt/ceoms/api
-docker compose -f docker-compose.prod.yml --env-file .env.prod build --no-cache api
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --force-recreate api
-docker compose -f docker-compose.prod.yml --env-file .env.prod logs api --tail=100
+docker compose -f docker-compose.prod.yml build --no-cache api
+docker compose -f docker-compose.prod.yml up -d --force-recreate api
+docker compose -f docker-compose.prod.yml logs api --tail=100
 ```
 
 Verify new routes exist:

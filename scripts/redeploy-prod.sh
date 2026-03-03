@@ -7,11 +7,6 @@ if [[ -z "${API_IMAGE:-}" ]]; then
   exit 1
 fi
 
-if [[ ! -f ".env.prod" ]]; then
-  echo ".env.prod is required in current directory"
-  exit 1
-fi
-
 echo "[deploy] Pulling API image ${API_IMAGE}"
 docker compose -f docker-compose.prod.yml pull api
 
@@ -19,7 +14,7 @@ echo "[deploy] Restarting API container"
 docker compose -f docker-compose.prod.yml up -d --no-deps api
 
 echo "[deploy] API health check"
-curl -fsS http://localhost:4000/api/v1/health
+curl -fsS https://api.ceoms.vercel.app/api/v1/health
 echo
 
 echo "[deploy] Running containers"

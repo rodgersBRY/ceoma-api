@@ -26,10 +26,10 @@ services:
       dockerfile: Dockerfile
     container_name: ceoms-api
     restart: unless-stopped
-    env_file: .env.prod
+    env_file: .env
     environment:
       NODE_ENV: production
-      # Overrides the DATABASE_URL in api/.env.prod so it resolves to the
+      # Overrides the DATABASE_URL in api/.env so it resolves to the
       # postgres container hostname instead of localhost
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
