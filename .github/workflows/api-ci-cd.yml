@@ -154,18 +154,8 @@ jobs:
               exit 1
             fi
 
-            if [ -f ".env.prod" ]; then
-              ENV_FILE=".env.prod"
-            elif [ -f ".env" ]; then
-              ENV_FILE=".env"
-              echo "Using .env because .env.prod was not found."
-            else
-              echo "No env file found in $(pwd). Expected .env.prod or .env."
-              exit 1
-            fi
-
             echo "Capturing currently running image..."
-            CURRENT_CONTAINER_ID="$("${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" ps -q api || true)"
+            CURRENT_CONTAINER_ID="$("${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml ps -q api || true)"
 
             if [ -n "$CURRENT_CONTAINER_ID" ]; then
               PREVIOUS_IMAGE="$("${DOCKER_CMD[@]}" inspect "$CURRENT_CONTAINER_ID" --format='{{.Config.Image}}')"
@@ -180,9 +170,9 @@ jobs:
             printf 'services:\n  api:\n    image: "%s"\n' "${API_IMAGE}" > "${OVERRIDE_FILE}"
 
             if echo "${{ secrets.GHCR_PAT }}" | "${DOCKER_CMD[@]}" login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin; then
-              if "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file "${ENV_FILE}" pull api; then
+              if "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" pull api; then
                 pulled_image=true
-                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" --env-file "${ENV_FILE}" up -d --no-deps api
+                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${OVERRIDE_FILE}" up -d --no-deps api
                 "${DOCKER_CMD[@]}" logout ghcr.io || true
               else
                 echo "Image pull failed. Falling back to local build."
@@ -195,16 +185,16 @@ jobs:
               if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
                 git pull --ff-only origin main || echo "Warning: git pull failed."
               fi
-              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" build api
-              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" up -d --no-deps api
+              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml build api
+              "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml up -d --no-deps api
             fi
 
             echo "Running health check..."
-            CONTAINER_ID=$("${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" ps -q api)
+            CONTAINER_ID=$("${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml ps -q api)
 
             success=false
             for i in {1..10}; do
-              if "${DOCKER_CMD[@]}" exec "$CONTAINER_ID" wget -q --spider http://localhost:4000/api/v1/health >/dev/null 2>&1; then
+              if "${DOCKER_CMD[@]}" exec "$CONTAINER_ID" wget -q --spider https://api.ceoms.vercel.app/api/v1/health >/dev/null 2>&1; then
                 success=true
                 break
               fi
@@ -219,7 +209,7 @@ jobs:
                 echo "Rolling back to $PREVIOUS_IMAGE"
                 ROLLBACK_OVERRIDE="$(mktemp)"
                 printf 'services:\n  api:\n    image: "%s"\n' "${PREVIOUS_IMAGE}" > "${ROLLBACK_OVERRIDE}"
-                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${ROLLBACK_OVERRIDE}" --env-file "${ENV_FILE}" up -d --no-deps api
+                "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml -f "${ROLLBACK_OVERRIDE}" up -d --no-deps api
                 rm -f "${ROLLBACK_OVERRIDE}"
                 echo "Rollback completed."
               else
@@ -231,5 +221,5 @@ jobs:
             fi
 
             echo "Deployment successful."
-            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" ps
+            "${DOCKER_CMD[@]}" compose -f docker-compose.prod.yml ps
             rm -f "${OVERRIDE_FILE}"
