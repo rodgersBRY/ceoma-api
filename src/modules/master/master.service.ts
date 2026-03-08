@@ -22,6 +22,7 @@ function throwReferenceConflict(error: unknown, entityName: string): never {
   if (pgError.code === "23503") {
     throw new ApiError(409, `${entityName} is in use and cannot be deleted`);
   }
+
   throw error;
 }
 
@@ -54,6 +55,7 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Supplier ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -66,6 +68,7 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Supplier ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -75,24 +78,32 @@ export class MasterService {
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
+
       whereClauses.push(`name ILIKE $${values.length} ESCAPE '\\'`);
     }
+
     if (listQuery.filters.type) {
       values.push(listQuery.filters.type);
+
       whereClauses.push(`supplier_type = $${values.length}`);
     }
+
     if (listQuery.filters.country) {
       values.push(listQuery.filters.country);
+
       whereClauses.push(`country = $${values.length}`);
     }
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     const countResult = await query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM suppliers ${whereSql}`,
       values,
     );
+
     values.push(listQuery.pageSize, listQuery.offset);
+
     const result = await query(
       `
       SELECT * FROM suppliers
@@ -102,6 +113,7 @@ export class MasterService {
       `,
       values,
     );
+
     return buildPaginatedResult(
       result.rows,
       Number(countResult.rows[0].total),
@@ -119,6 +131,7 @@ export class MasterService {
       `,
       [input.name, input.country ?? null],
     );
+
     return result.rows[0];
   }
 
@@ -133,6 +146,7 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Buyer ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -144,6 +158,7 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Buyer ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -155,6 +170,7 @@ export class MasterService {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
       whereClauses.push(`name ILIKE $${values.length} ESCAPE '\\'`);
     }
+
     if (listQuery.filters.country) {
       values.push(listQuery.filters.country);
       whereClauses.push(`country = $${values.length}`);
@@ -162,11 +178,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     const countResult = await query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM buyers ${whereSql}`,
       values,
     );
+
     values.push(listQuery.pageSize, listQuery.offset);
+
     const result = await query(
       `
       SELECT * FROM buyers
@@ -176,6 +195,7 @@ export class MasterService {
       `,
       values,
     );
+
     return buildPaginatedResult(
       result.rows,
       Number(countResult.rows[0].total),
@@ -193,6 +213,7 @@ export class MasterService {
       `,
       [input.name, input.location ?? null],
     );
+
     return result.rows[0];
   }
 
@@ -210,6 +231,7 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Warehouse ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -222,6 +244,7 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Warehouse ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -233,6 +256,7 @@ export class MasterService {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
       whereClauses.push(`name ILIKE $${values.length} ESCAPE '\\'`);
     }
+
     if (listQuery.filters.location) {
       values.push(listQuery.filters.location);
       whereClauses.push(`location = $${values.length}`);
@@ -240,11 +264,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     const countResult = await query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM warehouses ${whereSql}`,
       values,
     );
+
     values.push(listQuery.pageSize, listQuery.offset);
+
     const result = await query(
       `
       SELECT * FROM warehouses
@@ -254,6 +281,7 @@ export class MasterService {
       `,
       values,
     );
+
     return buildPaginatedResult(
       result.rows,
       Number(countResult.rows[0].total),
@@ -271,6 +299,7 @@ export class MasterService {
       `,
       [input.code, input.description ?? null],
     );
+
     return result.rows[0];
   }
 
@@ -285,6 +314,7 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Grade ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -296,6 +326,7 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Grade ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -309,6 +340,7 @@ export class MasterService {
         `(code ILIKE $${values.length} ESCAPE '\\' OR description ILIKE $${values.length} ESCAPE '\\')`,
       );
     }
+
     if (listQuery.filters.code) {
       values.push(listQuery.filters.code);
       whereClauses.push(`code = $${values.length}`);
@@ -316,11 +348,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     const countResult = await query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM grades ${whereSql}`,
       values,
     );
+
     values.push(listQuery.pageSize, listQuery.offset);
+
     const result = await query(
       `
       SELECT * FROM grades
@@ -330,6 +365,7 @@ export class MasterService {
       `,
       values,
     );
+
     return buildPaginatedResult(
       result.rows,
       Number(countResult.rows[0].total),
@@ -347,10 +383,14 @@ export class MasterService {
       `,
       [input.name, input.weight_kg],
     );
+
     return result.rows[0];
   }
 
-  async updateBagType(id: number, input: Partial<BagTypeInput>): Promise<unknown> {
+  async updateBagType(
+    id: number,
+    input: Partial<BagTypeInput>,
+  ): Promise<unknown> {
     const result = await query(
       `
       UPDATE bag_types SET name = $1, weight_kg = $2 WHERE id = $3 RETURNING *;
@@ -361,17 +401,20 @@ export class MasterService {
     if (result.rowCount === 0) {
       throw new ApiError(404, `Bag type ${id} not found`);
     }
+
     return result.rows[0];
   }
 
   async deleteBagType(id: number): Promise<unknown> {
-    const result = await query(`DELETE FROM bag_types WHERE id = $1 RETURNING *`, [
-      id,
-    ]).catch((error: unknown) => throwReferenceConflict(error, "Bag type"));
+    const result = await query(
+      `DELETE FROM bag_types WHERE id = $1 RETURNING *`,
+      [id],
+    ).catch((error: unknown) => throwReferenceConflict(error, "Bag type"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Bag type ${id} not found`);
     }
+
     return result.rows[0];
   }
 
@@ -386,11 +429,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     const countResult = await query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM bag_types ${whereSql}`,
       values,
     );
+
     values.push(listQuery.pageSize, listQuery.offset);
+
     const result = await query(
       `
       SELECT * FROM bag_types
@@ -400,6 +446,7 @@ export class MasterService {
       `,
       values,
     );
+
     return buildPaginatedResult(
       result.rows,
       Number(countResult.rows[0].total),

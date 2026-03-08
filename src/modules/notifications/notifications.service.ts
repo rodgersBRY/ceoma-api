@@ -107,6 +107,7 @@ export class NotificationService {
         event,
         subject: message.subject,
       });
+
       return "skipped_config";
     }
 
@@ -115,6 +116,7 @@ export class NotificationService {
         event,
         subject: message.subject,
       });
+
       return "skipped_no_recipients";
     }
 
@@ -134,6 +136,7 @@ export class NotificationService {
         subject: message.subject,
         recipients_count: message.to.length,
       });
+
       return "sent";
     } catch (error) {
       logger.error("Notification email dispatch failed", {
@@ -142,6 +145,7 @@ export class NotificationService {
         recipients: message.to,
         error,
       });
+
       return "failed";
     }
   }
@@ -156,11 +160,13 @@ export class NotificationService {
     try {
       const roleRecipients = await this.findUsersByRoles(params.roles);
       const recipients = this.uniqueRecipients(this.adminEmails, roleRecipients, params.extraRecipients);
+     
       const result = await this.sendEmail(params.event, {
         to: recipients,
         subject: params.subject,
         html: params.html,
       });
+
       if (result !== "sent") {
         logger.warn("Notification processing completed without successful send", {
           event: params.event,
@@ -196,6 +202,7 @@ export class NotificationService {
         event: "shipment_status_changed",
         status: payload.newStatus,
       });
+      
       return;
     }
 

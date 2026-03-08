@@ -12,6 +12,7 @@ export async function seedInitialUsersIfEmpty(): Promise<void> {
     const countResult = await client.query<CountRow>(
       "SELECT COUNT(*)::int AS count FROM users",
     );
+
     const usersCount = Number(countResult.rows[0]?.count ?? 0);
 
     if (usersCount > 0) {
@@ -27,6 +28,7 @@ export async function seedInitialUsersIfEmpty(): Promise<void> {
 
     for (const user of bootstrapUsers) {
       const passwordHash = await hashPassword(user.password);
+
       await client.query(
         `
         INSERT INTO users (email, password_hash, full_name, role, is_active, updated_at)
@@ -38,7 +40,10 @@ export async function seedInitialUsersIfEmpty(): Promise<void> {
     }
 
     logger.info("Default test users bootstrapped", {
-      users: bootstrapUsers.map((user) => ({ email: user.email, role: user.role })),
+      users: bootstrapUsers.map((user) => ({
+        email: user.email,
+        role: user.role,
+      })),
     });
   });
 }

@@ -11,19 +11,26 @@ import {
   warehouseSchema,
 } from "./master.validation.js";
 
-function parseEntityId(rawValue: string | string[] | undefined, entityLabel: string): number {
+function parseEntityId(
+  rawValue: string | string[] | undefined,
+  entityLabel: string,
+): number {
   const candidate = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+
   const parsed = Number(candidate);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new ApiError(400, `${entityLabel} id must be a positive integer`);
   }
+
   return parsed;
 }
 
 export class MasterController {
   async createSupplier(req: Request, res: Response): Promise<void> {
     const payload = supplierSchema.parse(req.body);
+
     const created = await masterService.createSupplier(payload);
+
     res.status(201).json(created);
   }
 
@@ -32,12 +39,15 @@ export class MasterController {
     const supplierId = parseEntityId(req.params.id, "Supplier");
 
     const updated = await masterService.updateSupplier(supplierId, payload);
+
     res.status(200).json(updated);
   }
 
   async deleteSupplier(req: Request, res: Response): Promise<void> {
     const supplierId = parseEntityId(req.params.id, "Supplier");
+
     const deleted = await masterService.deleteSupplier(supplierId);
+
     res.status(200).json(deleted);
   }
 
@@ -118,13 +128,17 @@ export class MasterController {
       allowedSortBy: ["id", "name", "location", "created_at"],
       defaultSortBy: "created_at",
     });
+
     const rows = await masterService.listWarehouses(query);
+
     res.json(rows);
   }
 
   async createGrade(req: Request, res: Response): Promise<void> {
     const payload = gradeSchema.parse(req.body);
+
     const created = await masterService.createGrade(payload);
+
     res.status(201).json(created);
   }
 
@@ -185,7 +199,9 @@ export class MasterController {
       allowedSortBy: ["id", "name", "weight_kg", "created_at"],
       defaultSortBy: "created_at",
     });
+
     const rows = await masterService.listBagTypes(query);
+
     res.json(rows);
   }
 }

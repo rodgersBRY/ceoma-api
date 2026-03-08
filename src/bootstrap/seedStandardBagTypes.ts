@@ -21,12 +21,14 @@ export async function seedStandardBagTypesIfMissing(): Promise<void> {
     const existingResult = await client.query<BagTypeRow>(
       "SELECT id, name, weight_kg FROM bag_types",
     );
+
     const existing = existingResult.rows;
 
     const inserted: Array<{ name: string; weight_kg: number }> = [];
     for (const seed of bootstrapBagTypes) {
       const found = existing.some((row) => {
         const existingWeight = Number(row.weight_kg);
+        
         return (
           normalizeName(row.name) === normalizeName(seed.name) ||
           sameWeight(existingWeight, seed.weightKg)

@@ -55,6 +55,7 @@ async function sendContractRiskAlerts(): Promise<void> {
         daysToWindowClose,
         unallocatedKg,
       });
+      
       alertsSent += 1;
     }
   }
