@@ -30,6 +30,7 @@ export function signAccessToken(payload: {
     issuer: "ceoms-api",
     audience: "ceoms-clients",
   };
+
   return jwt.sign(
     {
       sub: String(payload.userId),
@@ -52,6 +53,7 @@ export function signRefreshToken(payload: {
     issuer: "ceoms-api",
     audience: "ceoms-clients",
   };
+
   return jwt.sign(
     {
       sub: String(payload.userId),
@@ -64,7 +66,9 @@ export function signRefreshToken(payload: {
   );
 }
 
-function assertClaims(payload: string | JwtPayload | undefined): asserts payload is JwtPayload {
+function assertClaims(
+  payload: string | JwtPayload | undefined,
+): asserts payload is JwtPayload {
   if (!payload || typeof payload === "string") {
     throw new ApiError(401, "Invalid token payload");
   }
@@ -76,16 +80,21 @@ export function verifyAccessToken(token: string): AccessTokenClaims {
       issuer: "ceoms-api",
       audience: "ceoms-clients",
     });
+
     assertClaims(decoded);
+
     if (decoded.kind !== "access") {
       throw new ApiError(401, "Invalid access token type");
     }
+
     if (typeof decoded.sub !== "string" || typeof decoded.role !== "string") {
       throw new ApiError(401, "Invalid access token claims");
     }
+
     if (typeof decoded.sessionId !== "string") {
       throw new ApiError(401, "Invalid access token session");
     }
+
     return decoded as AccessTokenClaims;
   } catch {
     throw new ApiError(401, "Invalid or expired access token");
@@ -98,16 +107,21 @@ export function verifyRefreshToken(token: string): RefreshTokenClaims {
       issuer: "ceoms-api",
       audience: "ceoms-clients",
     });
+
     assertClaims(decoded);
+
     if (decoded.kind !== "refresh") {
       throw new ApiError(401, "Invalid refresh token type");
     }
+
     if (typeof decoded.sub !== "string" || typeof decoded.role !== "string") {
       throw new ApiError(401, "Invalid refresh token claims");
     }
+
     if (typeof decoded.sessionId !== "string") {
       throw new ApiError(401, "Invalid refresh token session");
     }
+
     return decoded as RefreshTokenClaims;
   } catch {
     throw new ApiError(401, "Invalid or expired refresh token");

@@ -13,6 +13,7 @@ export function validatePasswordStrength(password: string): void {
       `Password must be at least ${MIN_PASSWORD_LENGTH} characters long`,
     );
   }
+
   if (!PASSWORD_COMPLEXITY_REGEX.test(password)) {
     throw new ApiError(
       400,
@@ -23,6 +24,7 @@ export function validatePasswordStrength(password: string): void {
 
 export async function hashPassword(password: string): Promise<string> {
   validatePasswordStrength(password);
+  
   return argon2.hash(password, {
     type: argon2.argon2id,
     memoryCost: 19456,

@@ -15,8 +15,13 @@ import {
 
 function requestMeta(req: Request): { ipAddress: string; userAgent: string } {
   const userAgentRaw = req.headers["user-agent"];
-  const userAgentValue = Array.isArray(userAgentRaw) ? userAgentRaw[0] : userAgentRaw;
+
+  const userAgentValue = Array.isArray(userAgentRaw)
+    ? userAgentRaw[0]
+    : userAgentRaw;
+
   const userAgent = userAgentValue ?? "unknown";
+
   return {
     ipAddress: req.ip ?? "unknown",
     userAgent,
@@ -25,23 +30,30 @@ function requestMeta(req: Request): { ipAddress: string; userAgent: string } {
 
 function parseUserId(rawValue: string | undefined): number {
   const parsed = Number(rawValue);
+
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new ApiError(400, "userId must be a positive integer");
   }
+
   return parsed;
 }
 
 export class AuthController {
   async register(req: Request, res: Response): Promise<void> {
     const payload = registerSchema.parse(req.body);
+
     const user = await authService.register(payload, req.auth);
+
     res.status(201).json(user);
   }
 
   async login(req: Request, res: Response): Promise<void> {
     const payload = loginSchema.parse(req.body);
+
     const result = await authService.login(payload, requestMeta(req));
+
     const csrfToken = issueCsrfToken(res);
+
     res.json({
       ...result,
       csrf_token: csrfToken,
@@ -50,8 +62,11 @@ export class AuthController {
 
   async refresh(req: Request, res: Response): Promise<void> {
     const payload = refreshSchema.parse(req.body);
+
     const result = await authService.refresh(payload);
+
     const csrfToken = issueCsrfToken(res);
+
     res.json({
       ...result,
       csrf_token: csrfToken,
@@ -62,8 +77,11 @@ export class AuthController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
+
     const payload = logoutSchema.parse(req.body);
+
     await authService.logout(req.auth, payload);
+
     res.status(204).send();
   }
 
@@ -71,7 +89,9 @@ export class AuthController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
+
     const user = await authService.getCurrentUser(req.auth);
+
     res.json(user);
   }
 
@@ -79,6 +99,7 @@ export class AuthController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
+
     const query = parseListQuery(req.query as Record<string, unknown>, {
       allowedSortBy: [
         "created_at",
@@ -92,7 +113,9 @@ export class AuthController {
       ],
       defaultSortBy: "created_at",
     });
+
     const users = await authService.listUsers(req.auth, query);
+
     res.json(users);
   }
 
@@ -102,13 +125,21 @@ export class AuthController {
     }
 
     const userId = parseUserId(req.params.userId as string | undefined);
+
     const payload = userStatusSchema.parse(req.body);
-    const updated = await authService.updateUserStatus(req.auth, userId, payload);
+
+    const updated = await authService.updateUserStatus(
+      req.auth,
+      userId,
+      payload,
+    );
+
     res.json(updated);
   }
 
   async issueCsrf(_req: Request, res: Response): Promise<void> {
     const token = issueCsrfToken(res);
+
     res.json({ csrf_token: token });
   }
 
@@ -116,8 +147,11 @@ export class AuthController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
+
     const payload = createApiKeySchema.parse(req.body);
+
     const created = await authService.createApiKey(req.auth, payload);
+
     res.status(201).json(created);
   }
 
@@ -125,11 +159,14 @@ export class AuthController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
+
     const query = parseListQuery(req.query as Record<string, unknown>, {
       allowedSortBy: ["created_at", "last_used_at", "expires_at", "name", "id"],
       defaultSortBy: "created_at",
     });
+
     const keys = await authService.listApiKeys(req.auth, query);
+
     res.json(keys);
   }
 
@@ -137,12 +174,14 @@ export class AuthController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
+
     const apiKeyId = String(req.params.apiKeyId ?? "").trim();
     if (!apiKeyId) {
       throw new ApiError(400, "apiKeyId is required");
     }
 
     const revoked = await authService.revokeApiKey(req.auth, apiKeyId);
+
     res.json(revoked);
   }
 }

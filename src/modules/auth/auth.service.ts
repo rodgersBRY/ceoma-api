@@ -12,8 +12,15 @@ import {
 } from "../../common/pagination.js";
 import { query, withTransaction } from "../../db/pool.js";
 import { AuthContext, UserRole } from "../../types/auth.js";
-import { hashPassword, verifyPasswordHash } from "../../common/security/password.js";
-import { encryptSensitiveText, hashSha256, secureRandomToken } from "../../common/security/crypto.js";
+import {
+  hashPassword,
+  verifyPasswordHash,
+} from "../../common/security/password.js";
+import {
+  encryptSensitiveText,
+  hashSha256,
+  secureRandomToken,
+} from "../../common/security/crypto.js";
 import {
   signAccessToken,
   signRefreshToken,
@@ -81,11 +88,16 @@ function mapUserPublic(row: UserRow): Record<string, unknown> {
 }
 
 export class AuthService {
-  async register(input: RegisterInput, actor?: AuthContext): Promise<Record<string, unknown>> {
+  async register(
+    input: RegisterInput,
+    actor?: AuthContext,
+  ): Promise<Record<string, unknown>> {
     const email = input.email.toLowerCase();
+
     const usersCountResult = await query<{ count: string }>(
       "SELECT COUNT(*)::text AS count FROM users",
     );
+
     const usersCount = Number(usersCountResult.rows[0].count);
 
     const isBootstrap = usersCount === 0;
@@ -93,12 +105,14 @@ export class AuthService {
       if (!actor) {
         throw new ApiError(401, "Authentication required to create new users");
       }
+
       if (actor.role !== "admin") {
         throw new ApiError(403, "Only admin users can create accounts");
       }
     }
 
     const role: UserRole = isBootstrap ? "admin" : (input.role ?? "trader");
+
     const passwordHash = await hashPassword(input.password);
 
     const result = await query<UserRow>(
@@ -109,6 +123,7 @@ export class AuthService {
       `,
       [email, passwordHash, input.full_name, role],
     );
+
     return mapUserPublic(result.rows[0]);
   }
 
@@ -117,6 +132,7 @@ export class AuthService {
     requestMeta: { ipAddress: string; userAgent: string },
   ): Promise<Record<string, unknown>> {
     const email = input.email.toLowerCase();
+
     const userResult = await query<UserRow>(
       `
       SELECT id, email, password_hash, full_name, role, is_active
@@ -133,9 +149,10 @@ export class AuthService {
     if (!user.is_active) {
       throw new ApiError(403, "User account is inactive");
     }
+
     const valid = await verifyPasswordHash(user.password_hash, input.password);
     if (!valid) {
-      throw new ApiError(401, "Invalid credentials");
+      throw new ApiError(401, "Wrong password");
     }
 
     const sessionId = crypto.randomUUID();
@@ -153,6 +170,7 @@ export class AuthService {
     });
 
     const refreshTokenHash = hashSha256(refreshToken);
+
     const expiresAt = getExpiryDateFromJwt(refreshToken);
 
     await withTransaction(async (client) => {
@@ -172,7 +190,11 @@ export class AuthService {
           expiresAt,
         ],
       );
-      await client.query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [user.id]);
+
+      await client.query(
+        "UPDATE users SET last_login_at = NOW() WHERE id = $1",
+        [user.id],
+      );
     });
 
     return {
@@ -185,6 +207,7 @@ export class AuthService {
 
   async refresh(input: RefreshInput): Promise<Record<string, unknown>> {
     const claims = verifyRefreshToken(input.refresh_token);
+
     const sessionResult = await query<SessionRow>(
       `
       SELECT
@@ -201,23 +224,30 @@ export class AuthService {
       `,
       [claims.sessionId],
     );
+
     if (sessionResult.rowCount === 0) {
       throw new ApiError(401, "Session not found");
     }
+
     const session = sessionResult.rows[0];
     if (!session.is_active || session.revoked_at !== null) {
       throw new ApiError(401, "Session is revoked");
     }
+
     if (new Date(session.expires_at).getTime() <= Date.now()) {
       throw new ApiError(401, "Session has expired");
     }
+
     if (session.user_id !== Number(claims.sub)) {
       throw new ApiError(401, "Session user mismatch");
     }
 
     const incomingHash = hashSha256(input.refresh_token);
     if (incomingHash !== session.refresh_token_hash) {
-      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [session.id]);
+      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [
+        session.id,
+      ]);
+
       throw new ApiError(401, "Refresh token mismatch");
     }
 
@@ -226,12 +256,15 @@ export class AuthService {
       role: session.role,
       sessionId: session.id,
     });
+
     const newRefreshToken = signRefreshToken({
       userId: session.user_id,
       role: session.role,
       sessionId: session.id,
     });
+
     const newRefreshHash = hashSha256(newRefreshToken);
+
     const newExpiry = getExpiryDateFromJwt(newRefreshToken);
 
     await query(
@@ -253,10 +286,15 @@ export class AuthService {
   async logout(actor: AuthContext, input: LogoutInput): Promise<void> {
     if (input.refresh_token) {
       const claims = verifyRefreshToken(input.refresh_token);
+
       if (Number(claims.sub) !== actor.userId && actor.role !== "admin") {
         throw new ApiError(403, "You cannot revoke another user's session");
       }
-      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [claims.sessionId]);
+
+      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [
+        claims.sessionId,
+      ]);
+
       return;
     }
 
@@ -275,53 +313,88 @@ export class AuthService {
       `,
       [actor.userId],
     );
+
     if (result.rowCount === 0) {
       throw new ApiError(404, "User not found");
     }
+
     return mapUserPublic(result.rows[0]);
   }
 
-  async listUsers(actor: AuthContext, listQuery: ListQueryParams): Promise<unknown> {
+  async listUsers(
+    actor: AuthContext,
+    listQuery: ListQueryParams,
+  ): Promise<unknown> {
     if (actor.role !== "admin") {
-      throw new ApiError(403, "Only admin users can list accounts");
+      throw new ApiError(403, "Only admin can view user accounts");
     }
 
     const whereClauses: string[] = [];
+
     const values: unknown[] = [];
+
     const activeFilter = toBooleanFilter(listQuery.filters, "is_active");
+
     const statusFilter = listQuery.filters.status;
+
     const roleFilter = listQuery.filters.role;
-    const allowedRoles: UserRole[] = ["admin", "trader", "warehouse", "finance", "compliance"];
+
+    const allowedRoles: UserRole[] = [
+      "admin",
+      "trader",
+      "warehouse",
+      "finance",
+      "compliance",
+    ];
 
     if (activeFilter !== undefined) {
       values.push(activeFilter);
+
       whereClauses.push(`is_active = $${values.length}`);
     } else if (statusFilter) {
       if (statusFilter !== "active" && statusFilter !== "disabled") {
-        throw new ApiError(400, "filter_status must be one of: active, disabled");
+        throw new ApiError(
+          400,
+          "filter_status must be one of: active, disabled",
+        );
       }
+
       values.push(statusFilter === "active");
+
       whereClauses.push(`is_active = $${values.length}`);
     }
+
     if (roleFilter) {
       if (!allowedRoles.includes(roleFilter as UserRole)) {
-        throw new ApiError(400, "filter_role must be one of: admin, trader, warehouse, finance, compliance");
+        throw new ApiError(
+          400,
+          "filter_role must be one of: admin, trader, warehouse, finance, compliance",
+        );
       }
+
       values.push(roleFilter);
+
       whereClauses.push(`role = $${values.length}`);
     }
+
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
-      whereClauses.push(`(email ILIKE $${values.length} ESCAPE '\\' OR full_name ILIKE $${values.length} ESCAPE '\\')`);
+
+      whereClauses.push(
+        `(email ILIKE $${values.length} ESCAPE '\\' OR full_name ILIKE $${values.length} ESCAPE '\\')`,
+      );
     }
 
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const whereSql =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     const countResult = await query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM users ${whereSql}`,
       values,
     );
 
     values.push(listQuery.pageSize, listQuery.offset);
+
     const result = await query<UserListRow>(
       `
       SELECT
@@ -340,7 +413,12 @@ export class AuthService {
       `,
       values,
     );
-    return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
+
+    return buildPaginatedResult(
+      result.rows,
+      Number(countResult.rows[0].total),
+      listQuery,
+    );
   }
 
   async updateUserStatus(
@@ -391,7 +469,10 @@ export class AuthService {
   ): Promise<Record<string, unknown>> {
     const targetUserId = input.user_id ?? actor.userId;
     if (targetUserId !== actor.userId && actor.role !== "admin") {
-      throw new ApiError(403, "Only admin can create API keys for another user");
+      throw new ApiError(
+        403,
+        "Only admin can create API keys for another user",
+      );
     }
 
     const userResult = await query<{ id: number; is_active: boolean }>(
@@ -399,7 +480,7 @@ export class AuthService {
       [targetUserId],
     );
     if (userResult.rowCount === 0 || !userResult.rows[0].is_active) {
-      throw new ApiError(404, "Target user is not active or missing");
+      throw new ApiError(404, "Target user missing or not active");
     }
 
     const secret = secureRandomToken(32);
@@ -431,16 +512,26 @@ export class AuthService {
     };
   }
 
-  async listApiKeys(actor: AuthContext, listQuery: ListQueryParams): Promise<unknown> {
+  async listApiKeys(
+    actor: AuthContext,
+    listQuery: ListQueryParams,
+  ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const filteredUserId = toIntFilter(listQuery.filters, "user_id");
     const filteredActive = toBooleanFilter(listQuery.filters, "is_active");
 
-    if (actor.role !== "admin" && filteredUserId && filteredUserId !== actor.userId) {
-      throw new ApiError(403, "Non-admin users cannot query API keys for another user");
+    if (
+      actor.role !== "admin" &&
+      filteredUserId &&
+      filteredUserId !== actor.userId
+    ) {
+      throw new ApiError(
+        403,
+        "Non-admin users cannot query API keys for another user",
+      );
     }
-    
+
     if (actor.role === "admin") {
       if (filteredUserId) {
         values.push(filteredUserId);
@@ -450,16 +541,22 @@ export class AuthService {
       values.push(actor.userId);
       whereClauses.push(`user_id = $${values.length}`);
     }
+
     if (filteredActive !== undefined) {
       values.push(filteredActive);
+
       whereClauses.push(`is_active = $${values.length}`);
     }
+
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
+
       whereClauses.push(`name ILIKE $${values.length} ESCAPE '\\'`);
     }
 
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const whereSql =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     const countResult = await query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM api_keys ${whereSql}`,
       values,
@@ -485,10 +582,18 @@ export class AuthService {
       `,
       values,
     );
-    return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
+
+    return buildPaginatedResult(
+      result.rows,
+      Number(countResult.rows[0].total),
+      listQuery,
+    );
   }
 
-  async revokeApiKey(actor: AuthContext, apiKeyId: string): Promise<Record<string, unknown>> {
+  async revokeApiKey(
+    actor: AuthContext,
+    apiKeyId: string,
+  ): Promise<Record<string, unknown>> {
     if (actor.role !== "admin") {
       throw new ApiError(403, "Only admin users can revoke API keys");
     }
@@ -505,7 +610,6 @@ export class AuthService {
       `,
       [apiKeyId],
     );
-
     if (existing.rowCount === 0) {
       throw new ApiError(404, "API key not found");
     }
