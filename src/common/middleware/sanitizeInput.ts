@@ -10,8 +10,12 @@ type JsonValue =
 
 function sanitizeString(input: string): string {
   return input
-    .replace(/\0/g, "")
-    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/\0/g, "") // Removes null bytes (\0) — prevents null byte injection attacks
+    .replace(
+      /[\u0000-\u001F\u007F]/g,
+      "",
+    ) /* Removes all ASCII control characters (\u0000–\u001F, \u007F) — strips things like newlines, tabs,
+  backspace injected into input */
     .trim();
 }
 
@@ -32,6 +36,8 @@ function sanitizeValue(value: unknown): JsonValue {
     return value.map((item) => sanitizeValue(item));
   }
 
+  /*  each key-value pair sanitized, and any key starting with $ is dropped entirely
+     (NoSQL/MongoDB operator injection prevention, e.g. $where, $gt) */
   if (typeof value === "object" && value !== null) {
     const result: { [key: string]: JsonValue } = {};
 
@@ -39,6 +45,7 @@ function sanitizeValue(value: unknown): JsonValue {
       if (key.startsWith("$")) {
         continue;
       }
+
       const sanitizedKey = sanitizeString(key);
 
       result[sanitizedKey] = sanitizeValue(raw);
@@ -61,6 +68,7 @@ function overwriteObject(
   for (const key of Object.keys(target)) {
     delete target[key];
   }
+
   for (const [key, value] of Object.entries(sanitized)) {
     target[key] = value;
   }
