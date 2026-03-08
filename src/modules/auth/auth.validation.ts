@@ -9,7 +9,7 @@ export const userRoleSchema = z.enum([
 ]);
 
 export const registerSchema = z.object({
-  email: z.string().email({ message: "Please provide a valid email address" }),
+  email: z.email({ message: "Please provide a valid email address" }),
   password: z
     .string()
     .min(12, { message: "Password must be at least 12 characters long" }),
@@ -18,7 +18,7 @@ export const registerSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().email({ message: "Please provide a valid email address" }),
+  email: z.email({ message: "Please provide a valid email address" }),
   password: z.string().min(1, { message: "Password is required" }),
 });
 

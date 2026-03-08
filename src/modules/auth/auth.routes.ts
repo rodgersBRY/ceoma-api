@@ -11,9 +11,22 @@ import { authController } from "./auth.controller.js";
 
 export const authRouter = Router();
 
-authRouter.get("/csrf-token", asyncHandler(authController.issueCsrf.bind(authController)));
-authRouter.post("/login", authRateLimiter, asyncHandler(authController.login.bind(authController)));
-authRouter.post("/refresh", authRateLimiter, asyncHandler(authController.refresh.bind(authController)));
+authRouter.get(
+  "/csrf-token",
+  asyncHandler(authController.issueCsrf.bind(authController)),
+);
+
+authRouter.post(
+  "/login",
+  authRateLimiter,
+  asyncHandler(authController.login.bind(authController)),
+);
+
+authRouter.post(
+  "/refresh",
+  authRateLimiter,
+  asyncHandler(authController.refresh.bind(authController)),
+);
 
 authRouter.post(
   "/register",
@@ -26,31 +39,40 @@ authRouter.post(
   authenticate,
   asyncHandler(authController.logout.bind(authController)),
 );
-authRouter.get("/me", authenticate, asyncHandler(authController.me.bind(authController)));
+
+authRouter.get(
+  "/me",
+  authenticate,
+  asyncHandler(authController.me.bind(authController)),
+);
+
 authRouter.get(
   "/users",
   authenticate,
   authorize("admin"),
   asyncHandler(authController.listUsers.bind(authController)),
 );
+
 authRouter.patch(
   "/users/:userId/status",
   authenticate,
   authorize("admin"),
   asyncHandler(authController.updateUserStatus.bind(authController)),
 );
-authRouter.post(
-  "/api-keys",
-  authenticate,
-  authorize("admin"),
-  asyncHandler(authController.createApiKey.bind(authController)),
-);
-authRouter.get(
-  "/api-keys",
-  authenticate,
-  authorize("admin"),
-  asyncHandler(authController.listApiKeys.bind(authController)),
-);
+
+authRouter
+  .route("/api-leys")
+  .get(
+    authenticate,
+    authorize("admin"),
+    asyncHandler(authController.listApiKeys.bind(authController)),
+  )
+  .post(
+    authenticate,
+    authorize("admin"),
+    asyncHandler(authController.createApiKey.bind(authController)),
+  );
+
 authRouter.patch(
   "/api-keys/:apiKeyId/revoke",
   authenticate,
