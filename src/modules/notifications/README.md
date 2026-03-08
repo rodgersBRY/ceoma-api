@@ -25,6 +25,6 @@ Sends operational email notifications after successful business actions and runs
 ## Configuration Notes
 
 - Notifications are email-only.
-- Email provider uses SendGrid (`@sendgrid/mail`).
+- Email provider uses Emailjs (`@emailjs/nodejs`).
 - Notification dispatch is called after transactional writes complete, avoiding phantom alerts.
 - Cron jobs are enabled/disabled via env config and run in configured timezone.
