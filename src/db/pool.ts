@@ -9,7 +9,9 @@ const ssl =
   env.dbSslMode === "require"
     ? {
         rejectUnauthorized: env.dbSslRejectUnauthorized,
-        ca: env.dbSslCaPath ? readFileSync(env.dbSslCaPath, "utf-8") : undefined,
+        ca: env.dbSslCaPath
+          ? readFileSync(env.dbSslCaPath, "utf-8")
+          : undefined,
       }
     : undefined;
 
@@ -18,12 +20,14 @@ export const pool = new Pool({
   // ssl,
 });
 
+// prevents attaching duplicate event listeners if called more thanonce
 let poolEventsRegistered = false;
 
 export function registerPoolEventLogging(): void {
   if (poolEventsRegistered) {
     return;
   }
+
   poolEventsRegistered = true;
 
   pool.on("connect", () => {
@@ -46,6 +50,7 @@ export function registerPoolEventLogging(): void {
 export async function verifyDatabaseConnection(): Promise<void> {
   try {
     const result = await pool.query<{ ok: number }>("SELECT 1 AS ok");
+
     logger.info("Database connection check succeeded", {
       host: new URL(env.databaseUrl).hostname,
       database: new URL(env.databaseUrl).pathname.replace("/", ""),
@@ -53,6 +58,7 @@ export async function verifyDatabaseConnection(): Promise<void> {
     });
   } catch (error) {
     logger.error("Database connection check failed", { error });
+
     throw error;
   }
 }
@@ -68,13 +74,18 @@ export async function withTransaction<T>(
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
+
   try {
     await client.query("BEGIN");
+
     const result = await fn(client);
+
     await client.query("COMMIT");
+
     return result;
   } catch (error) {
     await client.query("ROLLBACK");
+    
     throw error;
   } finally {
     client.release();

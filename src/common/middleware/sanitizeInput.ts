@@ -9,30 +9,44 @@ type JsonValue =
   | { [key: string]: JsonValue };
 
 function sanitizeString(input: string): string {
-  return input.replace(/\0/g, "").replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  return input
+    .replace(/\0/g, "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim();
 }
 
 function sanitizeValue(value: unknown): JsonValue {
   if (typeof value === "string") {
     return sanitizeString(value);
   }
-  if (typeof value === "number" || typeof value === "boolean" || value === null) {
+
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    value === null
+  ) {
     return value;
   }
+
   if (Array.isArray(value)) {
     return value.map((item) => sanitizeValue(item));
   }
+
   if (typeof value === "object" && value !== null) {
     const result: { [key: string]: JsonValue } = {};
+
     for (const [key, raw] of Object.entries(value)) {
       if (key.startsWith("$")) {
         continue;
       }
       const sanitizedKey = sanitizeString(key);
+
       result[sanitizedKey] = sanitizeValue(raw);
     }
+
     return result;
   }
+
   return String(value);
 }
 
@@ -52,7 +66,11 @@ function overwriteObject(
   }
 }
 
-export function sanitizeInput(req: Request, _res: Response, next: NextFunction): void {
+export function sanitizeInput(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
   req.body = sanitizeValue(req.body);
 
   const sanitizedQuery = sanitizeValue(req.query);
