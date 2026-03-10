@@ -171,6 +171,7 @@ export class ShipmentsService {
       shipmentNumber: String(created.shipment.shipment_number),
       contractNumber: created.contractNumber,
       lotCodes: created.lotCodes,
+      organizationId,
     });
 
     return created.shipment;
@@ -228,6 +229,7 @@ export class ShipmentsService {
       actualDeparture: updated.shipment.actual_departure
         ? String(updated.shipment.actual_departure)
         : null,
+      organizationId,
     });
 
     return updated.shipment;
@@ -357,6 +359,7 @@ export class ShipmentsService {
       contractNumber: generated.contractNumber,
       buyerName: generated.buyerName,
       docTypes: generated.docTypes,
+      organizationId,
     });
 
     return generated.documents;

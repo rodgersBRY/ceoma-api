@@ -11,6 +11,7 @@ Shared cross-module utilities:
 - `middleware/idempotency.ts`: request deduplication for mutating requests
 - `middleware/sanitizeInput.ts`: recursive request sanitization
 - `middleware/requestLogger.ts`: request logging to winston
+- `middleware/planGuard.ts`: subscription plan limit enforcement
 - `pagination.ts`: shared pagination/filter parsing and response metadata helpers
 - `dbHelpers.ts`: domain-level DB helper functions reused across services
 - `security/*.ts`: JWT, password hashing, encryption, token utilities

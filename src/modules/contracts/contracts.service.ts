@@ -64,6 +64,7 @@ export class ContractsService {
       quantityKg: toNumber(created.contract.quantity_kg),
       shipmentWindowStart: String(created.contract.shipment_window_start),
       shipmentWindowEnd: String(created.contract.shipment_window_end),
+      organizationId,
     });
 
     return created.contract;
@@ -131,6 +132,7 @@ export class ContractsService {
       await notificationsService.notifyContractFullyAllocated({
         contractNumber: allocated.contractNumber,
         allocatedKg: allocated.allocatedKg,
+        organizationId,
       });
     }
 

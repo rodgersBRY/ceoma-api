@@ -11,6 +11,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 let jobsRegistered = false;
 
 type ContractRiskRow = {
+  organization_id: number;
   contract_number: string;
   quantity_kg: string;
   allocated_kg: string;
@@ -18,6 +19,7 @@ type ContractRiskRow = {
 };
 
 type ApiKeyExpiryRow = {
+  organization_id: number;
   name: string;
   key_prefix: string;
   expires_at: Date;
@@ -32,6 +34,7 @@ async function sendContractRiskAlerts(): Promise<void> {
   const result = await query<ContractRiskRow>(
     `
     SELECT
+      organization_id,
       contract_number,
       quantity_kg,
       allocated_kg,
@@ -51,6 +54,7 @@ async function sendContractRiskAlerts(): Promise<void> {
 
     if (unallocatedKg > EPSILON && daysToWindowClose <= env.contractRiskAlertWindowDays) {
       await notificationsService.notifyContractRiskAlert({
+        organizationId: row.organization_id,
         contractNumber: row.contract_number,
         daysToWindowClose,
         unallocatedKg,
@@ -68,6 +72,7 @@ async function sendApiKeyExpiryAlerts(): Promise<void> {
   const result = await query<ApiKeyExpiryRow>(
     `
     SELECT
+      u.organization_id,
       ak.name,
       ak.key_prefix,
       ak.expires_at,
@@ -92,6 +97,7 @@ async function sendApiKeyExpiryAlerts(): Promise<void> {
     const daysToExpiry = Math.max(Math.ceil((expiresAt.getTime() - Date.now()) / MS_PER_DAY), 0);
 
     await notificationsService.notifyApiKeyExpiring({
+      organizationId: row.organization_id,
       keyName: row.name,
       keyPrefix: row.key_prefix,
       expiresAt,

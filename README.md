@@ -26,6 +26,16 @@ Codebase is organized for enterprise maintainability with separated layers:
 
 Each module has its own `README.md` under `src/modules/<module>/README.md`.
 
+## Multi-tenant model
+
+CEOMS runs in shared-database, row-level isolation mode:
+
+- Every business table includes `organization_id`.
+- JWTs and API keys resolve an `organizationId` that scopes every query.
+- Unique identifiers (lot code, contract number, shipment number) are unique per organization, not globally.
+
+Bootstrap flow: the very first registration creates the first organization, its subscription, and the initial admin user.
+
 ## Security Controls Implemented
 
 - Authentication and authorization:
@@ -51,6 +61,20 @@ Each module has its own `README.md` under `src/modules/<module>/README.md`.
   - CSRF protection for browser-origin mutating requests
   - idempotency protection for mutating requests (`Idempotency-Key`)
   - API versioning under `/api/v1`
+
+## Plan enforcement
+
+The API enforces plan limits on write operations using `planGuard` middleware:
+
+- `users` (active users only)
+- `lots`
+- `api_keys` (active, non-revoked only)
+
+Default limits:
+
+- `starter`: 3 users, 50 lots, 0 API keys
+- `growth`: 10 users, 999 lots, 5 API keys
+- `enterprise`: unlimited
 
 ## What is implemented
 
@@ -127,9 +151,12 @@ Versioned endpoints are served under `/api/v1/*`.
 
 Set these in `.env` to enable email notifications and daily alerts:
 
-- `RESEND_API_KEY`
+- `EMAILJS_SERVICE_ID`
+- `EMAILJS_TEMPLATE_ID`
+- `EMAILJS_PUBLIC_KEY`
+- `EMAILJS_PRIVATE_KEY`
 - `NOTIFICATION_FROM_EMAIL`
-- `NOTIFICATION_ADMIN_EMAILS` (comma-separated)
+- `NOTIFICATION_ADMIN_EMAILS` (optional, comma-separated system recipients)
 - `NOTIFICATIONS_CRON_ENABLED` (`true`/`false`)
 - `NOTIFICATIONS_CRON_TIMEZONE` (for example `UTC`)
 - `CONTRACT_RISK_CRON_SCHEDULE` (default `0 7 * * *`)

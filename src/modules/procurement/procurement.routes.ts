@@ -1,12 +1,14 @@
 import { Router } from "express";
 
 import { asyncHandler } from "../../common/middleware/asyncHandler.js";
+import { planGuard } from "../../common/middleware/planGuard.js";
 import { procurementController } from "./procurement.controller.js";
 
 export const procurementRouter = Router();
 
 procurementRouter.post(
   "/auction-lots",
+  planGuard("lots"),
   asyncHandler(procurementController.createAuctionLot.bind(procurementController)),
 );
 procurementRouter.get(
@@ -27,6 +29,7 @@ procurementRouter.get(
 );
 procurementRouter.post(
   "/direct-deliveries",
+  planGuard("lots"),
   asyncHandler(procurementController.createDirectDelivery.bind(procurementController)),
 );
 procurementRouter.get(

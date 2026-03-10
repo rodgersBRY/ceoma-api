@@ -140,6 +140,7 @@ export class InventoryService {
       adjustmentKg: input.adjustment_kg,
       reason: input.reason,
       approvedBy: input.approved_by,
+      organizationId,
     });
 
     return adjustment.adjustment;

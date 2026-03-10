@@ -6,6 +6,7 @@ import {
   authenticateOptional,
   authorize,
 } from "../../common/middleware/auth.js";
+import { planGuard } from "../../common/middleware/planGuard.js";
 import { authRateLimiter } from "../../common/middleware/rateLimiters.js";
 import { authController } from "./auth.controller.js";
 
@@ -18,6 +19,7 @@ authRouter.post("/refresh", authRateLimiter, asyncHandler(authController.refresh
 authRouter.post(
   "/register",
   authenticateOptional,
+  planGuard("users"),
   asyncHandler(authController.register.bind(authController)),
 );
 
@@ -43,6 +45,7 @@ authRouter.post(
   "/api-keys",
   authenticate,
   authorize("admin"),
+  planGuard("api_keys"),
   asyncHandler(authController.createApiKey.bind(authController)),
 );
 authRouter.get(
