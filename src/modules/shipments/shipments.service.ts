@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { ApiError } from "../../common/errors/ApiError.js";
 import {
   EPSILON,
@@ -30,15 +32,17 @@ export class ShipmentsService {
       }
       const contract = contractResult.rows[0];
 
+      const shipmentId = crypto.randomUUID();
       const shipmentResult = await client.query(
         `
         INSERT INTO shipments (
-          shipment_number, contract_id, status, container_number, seal_number, planned_departure, organization_id
+          id, shipment_number, contract_id, status, container_number, seal_number, planned_departure, organization_id
         )
-        VALUES ($1, $2, 'planned', $3, $4, $5::date, $6)
+        VALUES ($1, $2, $3, 'planned', $4, $5, $6::date, $7)
         RETURNING *;
         `,
         [
+          shipmentId,
           input.shipment_number,
           input.contract_id,
           input.container_number ?? null,
@@ -335,13 +339,14 @@ export class ShipmentsService {
           };
         }
 
+        const documentId = crypto.randomUUID();
         const insertResult = await client.query(
           `
-          INSERT INTO shipment_documents (shipment_id, document_type, payload, organization_id)
-          VALUES ($1, $2, $3::jsonb, $4)
+          INSERT INTO shipment_documents (id, shipment_id, document_type, payload, organization_id)
+          VALUES ($1, $2, $3, $4::jsonb, $5)
           RETURNING *;
           `,
-          [shipmentId, docType, JSON.stringify(payload), organizationId],
+          [documentId, shipmentId, docType, JSON.stringify(payload), organizationId],
         );
         createdDocs.push(insertResult.rows[0]);
       }

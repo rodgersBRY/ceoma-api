@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { ApiError } from "../../common/errors/ApiError.js";
 import { EPSILON, refreshLotStatus, toNumber } from "../../common/dbHelpers.js";
 import {
@@ -121,13 +123,14 @@ export class InventoryService {
       );
       await refreshLotStatus(client, input.lot_id, organizationId);
 
+      const adjustmentId = crypto.randomUUID();
       const insertResult = await client.query(
         `
-        INSERT INTO stock_adjustments (lot_id, adjustment_kg, reason, approved_by, organization_id)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO stock_adjustments (id, lot_id, adjustment_kg, reason, approved_by, organization_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *;
         `,
-        [input.lot_id, input.adjustment_kg, input.reason, input.approved_by, organizationId],
+        [adjustmentId, input.lot_id, input.adjustment_kg, input.reason, input.approved_by, organizationId],
       );
       return {
         adjustment: insertResult.rows[0],

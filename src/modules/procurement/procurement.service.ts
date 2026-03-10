@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { ApiError } from "../../common/errors/ApiError.js";
 import { ensureReference } from "../../common/dbHelpers.js";
 import {
@@ -35,17 +37,19 @@ export class ProcurementService {
       await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse", organizationId);
       await ensureReference(client, "bag_types", input.bag_type_id, "Bag type", organizationId);
 
+      const lotId = crypto.randomUUID();
       const lotResult = await client.query(
         `
         INSERT INTO lots (
-          lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
+          id, lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
           bags_total, weight_total_kg, weight_available_kg, purchase_price_per_kg,
           auction_fees_total, additional_cost_total, status, organization_id
         )
-        VALUES ($1, 'auction', $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, 0, 'in_stock', $12)
+        VALUES ($1, $2, 'auction', $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $12, 0, 'in_stock', $13)
         RETURNING *;
         `,
         [
+          lotId,
           input.lot_number,
           input.lot_number,
           input.marketing_agent_id,
@@ -65,11 +69,12 @@ export class ProcurementService {
       await client.query(
         `
         INSERT INTO auction_procurements (
-          lot_id, auction_lot_number, marketing_agent_id, catalog_document_path, immutable, organization_id
+          id, lot_id, auction_lot_number, marketing_agent_id, catalog_document_path, immutable, organization_id
         )
-        VALUES ($1, $2, $3, $4, TRUE, $5);
+        VALUES ($1, $2, $3, $4, $5, TRUE, $6);
         `,
         [
+          crypto.randomUUID(),
           insertedLot.id,
           input.lot_number,
           input.marketing_agent_id,
@@ -98,15 +103,17 @@ export class ProcurementService {
         );
       }
 
+      const agreementId = crypto.randomUUID();
       const result = await client.query(
         `
         INSERT INTO direct_agreements (
-          supplier_id, agreement_reference, agreed_price_per_kg, currency, crop_year, organization_id
+          id, supplier_id, agreement_reference, agreed_price_per_kg, currency, crop_year, organization_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *;
         `,
         [
+          agreementId,
           input.supplier_id,
           input.agreement_reference,
           input.agreed_price_per_kg,
@@ -135,17 +142,19 @@ export class ProcurementService {
       await ensureReference(client, "bag_types", input.bag_type_id, "Bag type", organizationId);
 
       const additionalCost = input.processing_cost_total + input.transport_cost_total;
+      const lotId = crypto.randomUUID();
       const lotResult = await client.query(
         `
         INSERT INTO lots (
-          lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
+          id, lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
           bags_total, weight_total_kg, weight_available_kg, purchase_price_per_kg,
           auction_fees_total, additional_cost_total, status, organization_id
         )
-        VALUES ($1, 'direct', $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, 0, $11, 'in_stock', $12)
+        VALUES ($1, $2, 'direct', $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, 0, $12, 'in_stock', $13)
         RETURNING *;
         `,
         [
+          lotId,
           input.internal_lot_id,
           input.delivery_reference,
           agreement.supplier_id,
@@ -165,11 +174,12 @@ export class ProcurementService {
       await client.query(
         `
         INSERT INTO direct_deliveries (
-          agreement_id, lot_id, delivery_reference, moisture_percent, screen_size, defects_percent, organization_id
+          id, agreement_id, lot_id, delivery_reference, moisture_percent, screen_size, defects_percent, organization_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7);
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
         `,
         [
+          crypto.randomUUID(),
           input.agreement_id,
           insertedLot.id,
           input.delivery_reference,

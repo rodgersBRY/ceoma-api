@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { ApiError } from "../../common/errors/ApiError.js";
 import {
   EPSILON,
@@ -23,16 +25,18 @@ export class ContractsService {
         await ensureReference(client, "grades", input.grade_id, "Grade", organizationId);
       }
 
+      const contractId = crypto.randomUUID();
       const result = await client.query(
         `
         INSERT INTO contracts (
-          contract_number, buyer_id, grade_id, quantity_kg, price_per_kg, price_terms,
+          id, contract_number, buyer_id, grade_id, quantity_kg, price_per_kg, price_terms,
           currency, shipment_window_start, shipment_window_end, allocated_kg, shipped_kg, status, organization_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9::date, 0, 0, 'open', $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::date, $10::date, 0, 0, 'open', $11)
         RETURNING *;
         `,
         [
+          contractId,
           input.contract_number,
           input.buyer_id,
           input.grade_id ?? null,
@@ -101,13 +105,14 @@ export class ContractsService {
         throw new ApiError(409, "Allocation exceeds available lot quantity");
       }
 
+      const allocationId = crypto.randomUUID();
       const insertResult = await client.query(
         `
-        INSERT INTO allocations (contract_id, lot_id, allocated_kg, status, organization_id)
-        VALUES ($1, $2, $3, 'allocated', $4)
+        INSERT INTO allocations (id, contract_id, lot_id, allocated_kg, status, organization_id)
+        VALUES ($1, $2, $3, $4, 'allocated', $5)
         RETURNING *;
         `,
-        [contractId, input.lot_id, input.allocated_kg, organizationId],
+        [allocationId, contractId, input.lot_id, input.allocated_kg, organizationId],
       );
 
       const updatedContractResult = await client.query(

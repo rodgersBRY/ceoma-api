@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { ApiError } from "../../common/errors/ApiError.js";
 import { ensureReference, toNumber } from "../../common/dbHelpers.js";
 import { query, withTransaction } from "../../db/pool.js";
@@ -12,13 +14,15 @@ export class FinanceService {
       if (input.shipment_id) {
         await ensureReference(client, "shipments", input.shipment_id, "Shipment", organizationId);
       }
+      const costEntryId = crypto.randomUUID();
       const result = await client.query(
         `
-        INSERT INTO cost_entries (lot_id, shipment_id, category, amount, currency, notes, organization_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO cost_entries (id, lot_id, shipment_id, category, amount, currency, notes, organization_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *;
         `,
         [
+          costEntryId,
           input.lot_id ?? null,
           input.shipment_id ?? null,
           input.category,

@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import {
   ListQueryParams,
   buildPaginatedResult,
@@ -34,11 +36,11 @@ export class MasterService {
   ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO suppliers (name, supplier_type, country, organization_id)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO suppliers (id, name, supplier_type, country, organization_id)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
       `,
-      [input.name, input.type, input.country ?? null, organizationId],
+      [crypto.randomUUID(), input.name, input.type, input.country ?? null, organizationId],
     );
 
     return result.rows[0];
@@ -130,11 +132,11 @@ export class MasterService {
   ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO buyers (name, country, organization_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO buyers (id, name, country, organization_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [input.name, input.country ?? null, organizationId],
+      [crypto.randomUUID(), input.name, input.country ?? null, organizationId],
     );
     return result.rows[0];
   }
@@ -218,11 +220,11 @@ export class MasterService {
   ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO warehouses (name, location, organization_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO warehouses (id, name, location, organization_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [input.name, input.location ?? null, organizationId],
+      [crypto.randomUUID(), input.name, input.location ?? null, organizationId],
     );
     return result.rows[0];
   }
@@ -306,11 +308,11 @@ export class MasterService {
   ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO grades (code, description, organization_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO grades (id, code, description, organization_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [input.code, input.description ?? null, organizationId],
+      [crypto.randomUUID(), input.code, input.description ?? null, organizationId],
     );
     return result.rows[0];
   }
@@ -396,11 +398,11 @@ export class MasterService {
   ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO bag_types (name, weight_kg, organization_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO bag_types (id, name, weight_kg, organization_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [input.name, input.weight_kg, organizationId],
+      [crypto.randomUUID(), input.name, input.weight_kg, organizationId],
     );
     return result.rows[0];
   }

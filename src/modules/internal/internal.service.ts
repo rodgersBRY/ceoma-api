@@ -440,11 +440,11 @@ export class InternalService {
   async addNote(orgId: string, superAdminId: string, note: string): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO org_notes (organization_id, super_admin_id, note)
-      VALUES ($1, $2, $3)
+      INSERT INTO org_notes (id, organization_id, super_admin_id, note)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
       `,
-      [orgId, superAdminId, note],
+      [crypto.randomUUID(), orgId, superAdminId, note],
     );
     return result.rows[0];
   }
@@ -467,10 +467,10 @@ export class InternalService {
 
     await query(
       `
-      INSERT INTO impersonation_logs (organization_id, super_admin_id)
-      VALUES ($1, $2)
+      INSERT INTO impersonation_logs (id, organization_id, super_admin_id)
+      VALUES ($1, $2, $3)
       `,
-      [orgId, superAdminId],
+      [crypto.randomUUID(), orgId, superAdminId],
     );
 
     const token = signAccessToken({
