@@ -9,7 +9,7 @@ import {
   ListQueryParams,
   buildPaginatedResult,
   escapeLikeQuery,
-  toIntFilter,
+  toUuidFilter,
 } from "../../common/pagination.js";
 import { query, withTransaction } from "../../db/pool.js";
 import { notificationsService } from "../notifications/notifications.service.js";
@@ -142,7 +142,7 @@ export class ContractsService {
   async getDashboard(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
-    const buyerId = toIntFilter(listQuery.filters, "buyer_id");
+    const buyerId = toUuidFilter(listQuery.filters, "buyer_id");
 
     values.push(organizationId);
     whereClauses.push(`organization_id = $${values.length}`);

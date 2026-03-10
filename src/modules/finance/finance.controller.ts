@@ -5,6 +5,14 @@ import { financeService } from "./finance.service.js";
 import { costEntrySchema } from "./finance.validation.js";
 
 export class FinanceController {
+  private parseUuid(value: string | undefined, label: string): string {
+    const raw = String(value ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(raw)) {
+      throw new ApiError(400, `Invalid ${label}`);
+    }
+    return raw;
+  }
+
   async createCostEntry(req: Request, res: Response): Promise<void> {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
@@ -18,10 +26,7 @@ export class FinanceController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const contractId = Number(req.params.contractId);
-    if (!Number.isFinite(contractId) || contractId <= 0) {
-      throw new ApiError(400, "Invalid contractId");
-    }
+    const contractId = this.parseUuid(req.params.contractId, "contractId");
     const data = await financeService.getContractProfitability(
       contractId,
       req.auth.organizationId,

@@ -23,12 +23,12 @@ function requestMeta(req: Request): { ipAddress: string; userAgent: string } {
   };
 }
 
-function parseUserId(rawValue: string | undefined): number {
-  const parsed = Number(rawValue);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new ApiError(400, "userId must be a positive integer");
+function parseUserId(rawValue: string | undefined): string {
+  const value = String(rawValue ?? "").trim();
+  if (!/^[0-9a-f-]{36}$/i.test(value)) {
+    throw new ApiError(400, "userId must be a valid UUID");
   }
-  return parsed;
+  return value;
 }
 
 export class AuthController {

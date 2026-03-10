@@ -92,12 +92,12 @@ enum SubscriptionStatus {
 }
 
 model Organization {
-  id        Int      @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   name      String
   slug      String   @unique
   country   String?
   status    OrganizationStatus @default(active)
-  onboardedBy Int?   @map("onboarded_by")
+  onboardedBy String? @db.Uuid @map("onboarded_by")
   createdAt DateTime @default(now()) @map("created_at")
 
   users               User[]
@@ -126,7 +126,7 @@ model Organization {
 }
 
 model SuperAdmin {
-  id           Int      @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   email        String   @unique
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -139,9 +139,9 @@ model SuperAdmin {
 }
 
 model OrgNote {
-  id             Int      @id @default(autoincrement())
-  organizationId Int      @map("organization_id")
-  superAdminId   Int      @map("super_admin_id")
+  id String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid      @map("organization_id")
+  superAdminId String @db.Uuid      @map("super_admin_id")
   note           String
   createdAt      DateTime @default(now()) @map("created_at")
 
@@ -154,9 +154,9 @@ model OrgNote {
 }
 
 model ImpersonationLog {
-  id             Int      @id @default(autoincrement())
-  organizationId Int      @map("organization_id")
-  superAdminId   Int      @map("super_admin_id")
+  id String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid      @map("organization_id")
+  superAdminId String @db.Uuid      @map("super_admin_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -168,8 +168,8 @@ model ImpersonationLog {
 }
 
 model Subscription {
-  id               Int                @id @default(autoincrement())
-  organizationId   Int                @unique @map("organization_id")
+  id String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid                @unique @map("organization_id")
   plan             PlanTier           @default(starter)
   status           SubscriptionStatus @default(trialing)
   stripeCustomerId String?            @map("stripe_customer_id")
@@ -186,7 +186,7 @@ model Subscription {
 }
 
 model User {
-  id             Int       @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   email          String    @unique
   passwordHash   String    @map("password_hash")
   fullName       String    @map("full_name")
@@ -195,7 +195,7 @@ model User {
   lastLoginAt    DateTime? @map("last_login_at")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
-  organizationId Int       @map("organization_id")
+  organizationId String @db.Uuid       @map("organization_id")
 
   sessions     UserSession[]
   apiKeys      ApiKey[]
@@ -206,8 +206,8 @@ model User {
 }
 
 model UserSession {
-  id                 String    @id @db.Uuid
-  userId             Int       @map("user_id")
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid       @map("user_id")
   refreshTokenHash   String    @map("refresh_token_hash")
   ipAddressEncrypted String    @map("ip_address_encrypted")
   userAgentEncrypted String    @map("user_agent_encrypted")
@@ -222,8 +222,8 @@ model UserSession {
 }
 
 model ApiKey {
-  id         String    @id @db.Uuid
-  userId     Int       @map("user_id")
+  id         String    @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid       @map("user_id")
   name       String
   keyHash    String    @unique @map("key_hash")
   keyPrefix  String    @map("key_prefix")
@@ -240,7 +240,7 @@ model ApiKey {
 }
 
 model IdempotencyKey {
-  id                  String            @id @db.Uuid
+  id                  String            @id @default(uuid()) @db.Uuid
   idempotencyKey      String            @map("idempotency_key")
   actorScope          String            @map("actor_scope")
   requestMethod       String            @map("request_method")
@@ -260,12 +260,12 @@ model IdempotencyKey {
 }
 
 model Supplier {
-  id             Int          @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   name           String
   supplierType   SupplierType @map("supplier_type")
   country        String?
   createdAt      DateTime     @default(now()) @map("created_at")
-  organizationId Int          @map("organization_id")
+  organizationId String @db.Uuid          @map("organization_id")
 
   lots             Lot[]
   directAgreements DirectAgreement[]
@@ -277,11 +277,11 @@ model Supplier {
 }
 
 model Buyer {
-  id             Int          @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   name           String
   country        String?
   createdAt      DateTime     @default(now()) @map("created_at")
-  organizationId Int          @map("organization_id")
+  organizationId String @db.Uuid          @map("organization_id")
   contracts      Contract[]
   organization   Organization @relation(fields: [organizationId], references: [id])
 
@@ -290,11 +290,11 @@ model Buyer {
 }
 
 model Warehouse {
-  id             Int          @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   name           String
   location       String?
   createdAt      DateTime     @default(now()) @map("created_at")
-  organizationId Int          @map("organization_id")
+  organizationId String @db.Uuid          @map("organization_id")
   lots           Lot[]
   organization   Organization @relation(fields: [organizationId], references: [id])
 
@@ -303,11 +303,11 @@ model Warehouse {
 }
 
 model Grade {
-  id             Int          @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   code           String
   description    String?
   createdAt      DateTime     @default(now()) @map("created_at")
-  organizationId Int          @map("organization_id")
+  organizationId String @db.Uuid          @map("organization_id")
   lots           Lot[]
   contracts      Contract[]
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -317,11 +317,11 @@ model Grade {
 }
 
 model BagType {
-  id             Int          @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   name           String
   weightKg       Decimal      @map("weight_kg") @db.Decimal(10, 3)
   createdAt      DateTime     @default(now()) @map("created_at")
-  organizationId Int          @map("organization_id")
+  organizationId String @db.Uuid          @map("organization_id")
   lots           Lot[]
   organization   Organization @relation(fields: [organizationId], references: [id])
 
@@ -330,14 +330,14 @@ model BagType {
 }
 
 model Lot {
-  id                  Int       @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   lotCode             String    @map("lot_code")
   source              LotSource
   sourceReference     String    @map("source_reference")
-  supplierId          Int       @map("supplier_id")
-  gradeId             Int       @map("grade_id")
-  warehouseId         Int       @map("warehouse_id")
-  bagTypeId           Int       @map("bag_type_id")
+  supplierId String @db.Uuid       @map("supplier_id")
+  gradeId String @db.Uuid       @map("grade_id")
+  warehouseId String @db.Uuid       @map("warehouse_id")
+  bagTypeId String @db.Uuid       @map("bag_type_id")
   cropYear            String    @map("crop_year")
   bagsTotal           Int       @map("bags_total")
   weightTotalKg       Decimal   @map("weight_total_kg") @db.Decimal(12, 3)
@@ -347,7 +347,7 @@ model Lot {
   additionalCostTotal Decimal   @default(0) @map("additional_cost_total") @db.Decimal(14, 2)
   status              LotStatus
   createdAt           DateTime  @default(now()) @map("created_at")
-  organizationId      Int       @map("organization_id")
+  organizationId String @db.Uuid       @map("organization_id")
 
   supplier         Supplier            @relation(fields: [supplierId], references: [id])
   grade            Grade               @relation(fields: [gradeId], references: [id])
@@ -368,14 +368,14 @@ model Lot {
 }
 
 model AuctionProcurement {
-  id                  Int      @id @default(autoincrement())
-  lotId               Int      @unique @map("lot_id")
+  id String @id @default(uuid()) @db.Uuid
+  lotId String @db.Uuid      @unique @map("lot_id")
   auctionLotNumber    String   @map("auction_lot_number")
-  marketingAgentId    Int      @map("marketing_agent_id")
+  marketingAgentId String @db.Uuid      @map("marketing_agent_id")
   catalogDocumentPath String?  @map("catalog_document_path")
   immutable           Boolean  @default(true)
   createdAt           DateTime @default(now()) @map("created_at")
-  organizationId      Int      @map("organization_id")
+  organizationId String @db.Uuid      @map("organization_id")
 
   lot            Lot          @relation(fields: [lotId], references: [id])
   marketingAgent Supplier     @relation("auction_marketing_agent", fields: [marketingAgentId], references: [id])
@@ -386,14 +386,14 @@ model AuctionProcurement {
 }
 
 model DirectAgreement {
-  id                 Int      @id @default(autoincrement())
-  supplierId         Int      @map("supplier_id")
+  id String @id @default(uuid()) @db.Uuid
+  supplierId String @db.Uuid      @map("supplier_id")
   agreementReference String   @map("agreement_reference")
   agreedPricePerKg   Decimal  @map("agreed_price_per_kg") @db.Decimal(12, 4)
   currency           String   @default("USD")
   cropYear           String   @map("crop_year")
   createdAt          DateTime @default(now()) @map("created_at")
-  organizationId     Int      @map("organization_id")
+  organizationId String @db.Uuid      @map("organization_id")
 
   supplier     Supplier         @relation(fields: [supplierId], references: [id])
   deliveries   DirectDelivery[]
@@ -404,16 +404,16 @@ model DirectAgreement {
 }
 
 model DirectDelivery {
-  id                Int      @id @default(autoincrement())
-  agreementId       Int      @map("agreement_id")
-  lotId             Int      @unique @map("lot_id")
+  id String @id @default(uuid()) @db.Uuid
+  agreementId String @db.Uuid      @map("agreement_id")
+  lotId String @db.Uuid      @unique @map("lot_id")
   deliveryReference String   @map("delivery_reference")
   receivedAt        DateTime @default(now()) @map("received_at")
   moisturePercent   Decimal  @map("moisture_percent") @db.Decimal(8, 3)
   screenSize        Decimal  @map("screen_size") @db.Decimal(8, 3)
   defectsPercent    Decimal  @map("defects_percent") @db.Decimal(8, 3)
   createdAt         DateTime @default(now()) @map("created_at")
-  organizationId    Int      @map("organization_id")
+  organizationId String @db.Uuid      @map("organization_id")
 
   agreement    DirectAgreement @relation(fields: [agreementId], references: [id])
   lot          Lot             @relation(fields: [lotId], references: [id])
@@ -424,10 +424,10 @@ model DirectDelivery {
 }
 
 model Contract {
-  id                  Int            @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   contractNumber      String         @map("contract_number")
-  buyerId             Int            @map("buyer_id")
-  gradeId             Int?           @map("grade_id")
+  buyerId String @db.Uuid            @map("buyer_id")
+  gradeId String? @db.Uuid           @map("grade_id")
   quantityKg          Decimal        @map("quantity_kg") @db.Decimal(12, 3)
   pricePerKg          Decimal        @map("price_per_kg") @db.Decimal(12, 4)
   priceTerms          PriceTerms     @map("price_terms")
@@ -438,7 +438,7 @@ model Contract {
   shippedKg           Decimal        @default(0) @map("shipped_kg") @db.Decimal(12, 3)
   status              ContractStatus @default(open)
   createdAt           DateTime       @default(now()) @map("created_at")
-  organizationId      Int            @map("organization_id")
+  organizationId String @db.Uuid            @map("organization_id")
 
   buyer        Buyer        @relation(fields: [buyerId], references: [id])
   grade        Grade?       @relation(fields: [gradeId], references: [id])
@@ -452,9 +452,9 @@ model Contract {
 }
 
 model Shipment {
-  id                   Int            @id @default(autoincrement())
+  id String @id @default(uuid()) @db.Uuid
   shipmentNumber       String         @map("shipment_number")
-  contractId           Int            @map("contract_id")
+  contractId String @db.Uuid            @map("contract_id")
   status               ShipmentStatus @default(planned)
   containerNumber      String?        @map("container_number")
   sealNumber           String?        @map("seal_number")
@@ -462,7 +462,7 @@ model Shipment {
   actualDeparture      DateTime?      @map("actual_departure") @db.Date
   traceabilitySnapshot Json           @default("{}") @map("traceability_snapshot")
   createdAt            DateTime       @default(now()) @map("created_at")
-  organizationId       Int            @map("organization_id")
+  organizationId String @db.Uuid            @map("organization_id")
 
   contract     Contract           @relation(fields: [contractId], references: [id])
   allocations  Allocation[]
@@ -477,14 +477,14 @@ model Shipment {
 }
 
 model Allocation {
-  id             Int              @id @default(autoincrement())
-  contractId     Int              @map("contract_id")
-  lotId          Int              @map("lot_id")
+  id String @id @default(uuid()) @db.Uuid
+  contractId String @db.Uuid              @map("contract_id")
+  lotId String @db.Uuid              @map("lot_id")
   allocatedKg    Decimal          @map("allocated_kg") @db.Decimal(12, 3)
   status         AllocationStatus @default(allocated)
-  shipmentId     Int?             @map("shipment_id")
+  shipmentId String? @db.Uuid             @map("shipment_id")
   createdAt      DateTime         @default(now()) @map("created_at")
-  organizationId Int              @map("organization_id")
+  organizationId String @db.Uuid              @map("organization_id")
 
   contract     Contract     @relation(fields: [contractId], references: [id])
   lot          Lot          @relation(fields: [lotId], references: [id])
@@ -499,12 +499,12 @@ model Allocation {
 }
 
 model ShipmentDocument {
-  id             Int          @id @default(autoincrement())
-  shipmentId     Int          @map("shipment_id")
+  id String @id @default(uuid()) @db.Uuid
+  shipmentId String @db.Uuid          @map("shipment_id")
   documentType   DocumentType @map("document_type")
   payload        Json         @default("{}")
   createdAt      DateTime     @default(now()) @map("created_at")
-  organizationId Int          @map("organization_id")
+  organizationId String @db.Uuid          @map("organization_id")
 
   shipment     Shipment     @relation(fields: [shipmentId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -514,15 +514,15 @@ model ShipmentDocument {
 }
 
 model CostEntry {
-  id             Int      @id @default(autoincrement())
-  lotId          Int?     @map("lot_id")
-  shipmentId     Int?     @map("shipment_id")
+  id String @id @default(uuid()) @db.Uuid
+  lotId String @db.Uuid?     @map("lot_id")
+  shipmentId String? @db.Uuid     @map("shipment_id")
   category       String
   amount         Decimal  @db.Decimal(14, 2)
   currency       String   @default("USD")
   notes          String?
   createdAt      DateTime @default(now()) @map("created_at")
-  organizationId Int      @map("organization_id")
+  organizationId String @db.Uuid      @map("organization_id")
 
   lot          Lot?         @relation(fields: [lotId], references: [id])
   shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
@@ -533,13 +533,13 @@ model CostEntry {
 }
 
 model StockAdjustment {
-  id             Int      @id @default(autoincrement())
-  lotId          Int      @map("lot_id")
+  id String @id @default(uuid()) @db.Uuid
+  lotId String @db.Uuid      @map("lot_id")
   adjustmentKg   Decimal  @map("adjustment_kg") @db.Decimal(12, 3)
   reason         String
   approvedBy     String   @map("approved_by")
   createdAt      DateTime @default(now()) @map("created_at")
-  organizationId Int      @map("organization_id")
+  organizationId String @db.Uuid      @map("organization_id")
 
   lot          Lot          @relation(fields: [lotId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])

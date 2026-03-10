@@ -10,6 +10,14 @@ import {
 } from "./shipments.validation.js";
 
 export class ShipmentsController {
+  private parseUuid(value: string | undefined, label: string): string {
+    const raw = String(value ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(raw)) {
+      throw new ApiError(400, `Invalid ${label}`);
+    }
+    return raw;
+  }
+
   async createShipment(req: Request, res: Response): Promise<void> {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
@@ -23,10 +31,7 @@ export class ShipmentsController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const shipmentId = Number(req.params.shipmentId);
-    if (!Number.isFinite(shipmentId) || shipmentId <= 0) {
-      throw new ApiError(400, "Invalid shipmentId");
-    }
+    const shipmentId = this.parseUuid(req.params.shipmentId, "shipmentId");
     const payload = shipmentStatusSchema.parse(req.body);
     const shipment = await shipmentsService.updateStatus(
       shipmentId,
@@ -40,10 +45,7 @@ export class ShipmentsController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const shipmentId = Number(req.params.shipmentId);
-    if (!Number.isFinite(shipmentId) || shipmentId <= 0) {
-      throw new ApiError(400, "Invalid shipmentId");
-    }
+    const shipmentId = this.parseUuid(req.params.shipmentId, "shipmentId");
     const payload = docsGenerateSchema.parse(req.body);
     const docs = await shipmentsService.generateDocuments(
       shipmentId,
@@ -57,10 +59,7 @@ export class ShipmentsController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const shipmentId = Number(req.params.shipmentId);
-    if (!Number.isFinite(shipmentId) || shipmentId <= 0) {
-      throw new ApiError(400, "Invalid shipmentId");
-    }
+    const shipmentId = this.parseUuid(req.params.shipmentId, "shipmentId");
     const query = parseListQuery(req.query as Record<string, unknown>, {
       allowedSortBy: ["id", "document_type", "created_at"],
       defaultSortBy: "created_at",

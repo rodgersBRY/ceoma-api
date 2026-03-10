@@ -10,7 +10,7 @@ export type SuperAdminClaims = {
 };
 
 export function signSuperAdminToken(payload: {
-  superAdminId: number;
+  superAdminId: string;
   email: string;
   expiresIn?: SignOptions["expiresIn"];
 }): string {
@@ -28,6 +28,12 @@ export function signSuperAdminToken(payload: {
     } satisfies SuperAdminClaims,
     env.superAdminJwtSecret,
     options,
+  );
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
   );
 }
 
@@ -51,6 +57,10 @@ export function verifySuperAdminToken(token: string): SuperAdminClaims {
     
     if (typeof decoded.sub !== "string" || typeof decoded.email !== "string") {
       throw new ApiError(401, "Invalid super admin claims");
+    }
+
+    if (!isUuid(decoded.sub)) {
+      throw new ApiError(401, "Invalid super admin identifier");
     }
 
     return decoded as SuperAdminClaims;

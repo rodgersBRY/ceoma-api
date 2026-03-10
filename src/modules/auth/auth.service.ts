@@ -8,7 +8,7 @@ import {
   buildPaginatedResult,
   escapeLikeQuery,
   toBooleanFilter,
-  toIntFilter,
+  toUuidFilter,
 } from "../../common/pagination.js";
 import { query, withTransaction } from "../../db/pool.js";
 import { AuthContext, UserRole } from "../../types/auth.js";
@@ -36,36 +36,36 @@ import {
 } from "./auth.validation.js";
 
 type UserRow = {
-  id: number;
+  id: string;
   email: string;
   password_hash: string;
   full_name: string;
   role: UserRole;
   is_active: boolean;
-  organization_id: number;
+  organization_id: string;
 };
 
 type UserListRow = {
-  id: number;
+  id: string;
   email: string;
   full_name: string;
   role: UserRole;
   status: "active" | "disabled";
   is_active: boolean;
-  organization_id: number;
+  organization_id: string;
   last_login_at: Date | null;
   created_at: Date;
 };
 
 type SessionRow = {
   id: string;
-  user_id: number;
+  user_id: string;
   refresh_token_hash: string;
   expires_at: Date;
   revoked_at: Date | null;
   role: UserRole;
   is_active: boolean;
-  organization_id: number;
+  organization_id: string;
 };
 
 function getExpiryDateFromJwt(token: string): Date {
@@ -302,19 +302,24 @@ export class AuthService {
       `,
       [claims.sessionId],
     );
+
     if (sessionResult.rowCount === 0) {
       throw new ApiError(401, "Session not found");
     }
+
     const session = sessionResult.rows[0];
     if (!session.is_active || session.revoked_at !== null) {
       throw new ApiError(401, "Session is revoked");
     }
+
     if (new Date(session.expires_at).getTime() <= Date.now()) {
       throw new ApiError(401, "Session has expired");
     }
-    if (session.user_id !== Number(claims.sub)) {
+
+    if (session.user_id !== claims.sub) {
       throw new ApiError(401, "Session user mismatch");
     }
+
     if (session.organization_id !== claims.organizationId) {
       throw new ApiError(401, "Session organization mismatch");
     }
@@ -361,9 +366,10 @@ export class AuthService {
   async logout(actor: AuthContext, input: LogoutInput): Promise<void> {
     if (input.refresh_token) {
       const claims = verifyRefreshToken(input.refresh_token);
-      if (Number(claims.sub) !== actor.userId && actor.role !== "admin") {
+      if (claims.sub !== actor.userId && actor.role !== "admin") {
         throw new ApiError(403, "You cannot revoke another user's session");
       }
+
       await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [
         claims.sessionId,
       ]);
@@ -385,9 +391,11 @@ export class AuthService {
       `,
       [actor.userId],
     );
+
     if (result.rowCount === 0) {
       throw new ApiError(404, "User not found");
     }
+    
     return mapUserPublic(result.rows[0]);
   }
 
@@ -481,7 +489,7 @@ export class AuthService {
 
   async updateUserStatus(
     actor: AuthContext,
-    userId: number,
+    userId: string,
     input: UserStatusInput,
   ): Promise<Record<string, unknown>> {
     if (actor.role !== "admin") {
@@ -533,7 +541,7 @@ export class AuthService {
       );
     }
 
-    const userResult = await query<{ id: number; is_active: boolean }>(
+    const userResult = await query<{ id: string; is_active: boolean }>(
       "SELECT id, is_active FROM users WHERE id = $1 AND organization_id = $2",
       [targetUserId, actor.organizationId],
     );
@@ -576,7 +584,7 @@ export class AuthService {
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
-    const filteredUserId = toIntFilter(listQuery.filters, "user_id");
+    const filteredUserId = toUuidFilter(listQuery.filters, "user_id");
     const filteredActive = toBooleanFilter(listQuery.filters, "is_active");
 
     if (

@@ -1,4 +1,4 @@
 export type SuperAdminContext = {
-  id: number;
+  id: string;
   email: string;
 };

@@ -8,7 +8,7 @@ type TokenKind = "access" | "refresh";
 type BaseClaims = {
   sub: string;
   role: string;
-  organizationId: number;
+  organizationId: string;
   kind: TokenKind;
   sessionId: string;
   impersonated?: boolean;
@@ -23,9 +23,9 @@ export type RefreshTokenClaims = BaseClaims & {
 };
 
 export function signAccessToken(payload: {
-  userId: number;
+  userId: string;
   role: string;
-  organizationId: number;
+  organizationId: string;
   sessionId: string;
   impersonated?: boolean;
   expiresIn?: SignOptions["expiresIn"];
@@ -51,9 +51,9 @@ export function signAccessToken(payload: {
 }
 
 export function signRefreshToken(payload: {
-  userId: number;
+  userId: string;
   role: string;
-  organizationId: number;
+  organizationId: string;
   sessionId: string;
 }): string {
   const options: SignOptions = {
@@ -75,12 +75,16 @@ export function signRefreshToken(payload: {
   );
 }
 
-function assertClaims(
-  payload: string | JwtPayload | undefined,
-): asserts payload is JwtPayload {
+function assertClaims(payload: string | JwtPayload | undefined): asserts payload is JwtPayload {
   if (!payload || typeof payload === "string") {
     throw new ApiError(401, "Invalid token payload");
   }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 export function verifyAccessToken(token: string): AccessTokenClaims {
@@ -99,10 +103,7 @@ export function verifyAccessToken(token: string): AccessTokenClaims {
       throw new ApiError(401, "Invalid access token claims");
     }
 
-    if (
-      typeof decoded.organizationId !== "number" ||
-      decoded.organizationId <= 0
-    ) {
+    if (typeof decoded.organizationId !== "string" || !isUuid(decoded.organizationId)) {
       throw new ApiError(401, "Invalid access token organization");
     }
 
@@ -131,10 +132,8 @@ export function verifyRefreshToken(token: string): RefreshTokenClaims {
     if (typeof decoded.sub !== "string" || typeof decoded.role !== "string") {
       throw new ApiError(401, "Invalid refresh token claims");
     }
-    if (
-      typeof decoded.organizationId !== "number" ||
-      decoded.organizationId <= 0
-    ) {
+    
+    if (typeof decoded.organizationId !== "string" || !isUuid(decoded.organizationId)) {
       throw new ApiError(401, "Invalid refresh token organization");
     }
 

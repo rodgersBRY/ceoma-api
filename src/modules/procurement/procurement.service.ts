@@ -4,7 +4,7 @@ import {
   ListQueryParams,
   buildPaginatedResult,
   escapeLikeQuery,
-  toIntFilter,
+  toUuidFilter,
 } from "../../common/pagination.js";
 import { query, withTransaction } from "../../db/pool.js";
 import {
@@ -186,7 +186,7 @@ export class ProcurementService {
   async listDirectAgreements(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
-    const supplierId = toIntFilter(listQuery.filters, "supplier_id");
+    const supplierId = toUuidFilter(listQuery.filters, "supplier_id");
 
     values.push(organizationId);
     whereClauses.push(`da.organization_id = $${values.length}`);
@@ -233,9 +233,9 @@ export class ProcurementService {
   async listAuctionLots(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = ["l.source = 'auction'"];
     const values: unknown[] = [];
-    const marketingAgentId = toIntFilter(listQuery.filters, "marketing_agent_id");
-    const gradeId = toIntFilter(listQuery.filters, "grade_id");
-    const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
+    const marketingAgentId = toUuidFilter(listQuery.filters, "marketing_agent_id");
+    const gradeId = toUuidFilter(listQuery.filters, "grade_id");
+    const warehouseId = toUuidFilter(listQuery.filters, "warehouse_id");
 
     values.push(organizationId);
     whereClauses.push(`l.organization_id = $${values.length}`);
@@ -316,10 +316,10 @@ export class ProcurementService {
   async listDirectDeliveries(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = ["l.source = 'direct'"];
     const values: unknown[] = [];
-    const supplierId = toIntFilter(listQuery.filters, "supplier_id");
-    const agreementId = toIntFilter(listQuery.filters, "agreement_id");
-    const gradeId = toIntFilter(listQuery.filters, "grade_id");
-    const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
+    const supplierId = toUuidFilter(listQuery.filters, "supplier_id");
+    const agreementId = toUuidFilter(listQuery.filters, "agreement_id");
+    const gradeId = toUuidFilter(listQuery.filters, "grade_id");
+    const warehouseId = toUuidFilter(listQuery.filters, "warehouse_id");
 
     values.push(organizationId);
     whereClauses.push(`l.organization_id = $${values.length}`);

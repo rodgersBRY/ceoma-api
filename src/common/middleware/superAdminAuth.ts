@@ -15,7 +15,7 @@ export function requireSuperAdmin(req: Request, _res: Response, next: NextFuncti
   try {
     const claims = verifySuperAdminToken(token);
     req.superAdmin = {
-      id: Number(claims.sub),
+      id: claims.sub,
       email: claims.email,
     };
     next();

@@ -2,9 +2,9 @@ export type UserRole = "admin" | "trader" | "warehouse" | "finance" | "complianc
 
 export type AuthContext = {
   authType: "jwt" | "api_key";
-  userId: number;
+  userId: string;
   role: UserRole;
-  organizationId: number;
+  organizationId: string;
   sessionId?: string;
   apiKeyId?: string;
   impersonated?: boolean;

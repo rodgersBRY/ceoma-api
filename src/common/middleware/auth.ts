@@ -7,17 +7,17 @@ import { query } from "../../db/pool.js";
 import { AuthContext, UserRole } from "../../types/auth.js";
 
 type UserRow = {
-  id: number;
+  id: string;
   role: UserRole;
   is_active: boolean;
-  organization_id: number;
+  organization_id: string;
 };
 
 type ApiKeyRow = {
   id: string;
-  user_id: number;
+  user_id: string;
   role: UserRole;
-  organization_id: number;
+  organization_id: string;
 };
 
 function parseBearerToken(header: string | undefined): string | null {
@@ -62,7 +62,7 @@ async function resolveAuthContext(req: Request): Promise<AuthContext | undefined
     const claims = verifyAccessToken(bearer);
     const userResult = await query<UserRow>(
       "SELECT id, role, is_active, organization_id FROM users WHERE id = $1",
-      [Number(claims.sub)],
+      [claims.sub],
     );
     if (userResult.rowCount === 0 || !userResult.rows[0].is_active) {
       throw new ApiError(401, "User is inactive or missing");

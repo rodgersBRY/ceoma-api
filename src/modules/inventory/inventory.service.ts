@@ -4,7 +4,7 @@ import {
   ListQueryParams,
   buildPaginatedResult,
   escapeLikeQuery,
-  toIntFilter,
+  toUuidFilter,
 } from "../../common/pagination.js";
 import { query, withTransaction } from "../../db/pool.js";
 import { notificationsService } from "../notifications/notifications.service.js";
@@ -14,9 +14,9 @@ export class InventoryService {
   async listLots(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
-    const gradeId = toIntFilter(listQuery.filters, "grade_id");
-    const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
-    const supplierId = toIntFilter(listQuery.filters, "supplier_id");
+    const gradeId = toUuidFilter(listQuery.filters, "grade_id");
+    const warehouseId = toUuidFilter(listQuery.filters, "warehouse_id");
+    const supplierId = toUuidFilter(listQuery.filters, "supplier_id");
 
     values.push(organizationId);
     whereClauses.push(`l.organization_id = $${values.length}`);

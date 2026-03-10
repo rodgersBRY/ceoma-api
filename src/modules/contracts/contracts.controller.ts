@@ -6,6 +6,14 @@ import { contractsService } from "./contracts.service.js";
 import { allocationSchema, contractSchema } from "./contracts.validation.js";
 
 export class ContractsController {
+  private parseUuid(value: string | undefined, label: string): string {
+    const raw = String(value ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(raw)) {
+      throw new ApiError(400, `Invalid ${label}`);
+    }
+    return raw;
+  }
+
   async createContract(req: Request, res: Response): Promise<void> {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
@@ -19,10 +27,7 @@ export class ContractsController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const contractId = Number(req.params.contractId);
-    if (!Number.isFinite(contractId) || contractId <= 0) {
-      throw new ApiError(400, "Invalid contractId");
-    }
+    const contractId = this.parseUuid(req.params.contractId, "contractId");
     const payload = allocationSchema.parse(req.body);
     const allocation = await contractsService.allocateLot(
       contractId,
