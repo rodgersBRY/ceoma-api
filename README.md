@@ -48,7 +48,7 @@ Bootstrap flow: the very first registration creates the first organization, its 
   - strict CORS allowlist
   - global and auth-specific rate limiters
   - JSON and URL-encoded request size limits
-  - request logging through `winston` + `morgan`
+  - request logging through `winston`
   - request ID propagation (`x-request-id`)
 - Data security:
   - Argon2id password hashing
