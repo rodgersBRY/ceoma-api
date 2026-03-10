@@ -19,7 +19,7 @@ async function bootstrap(): Promise<void> {
   await verifyDatabaseConnection();
 
   await seedSuperAdminsIfConfigured();
-  await seedInitialUsersIfEmpty();
+  // await seedInitialUsersIfEmpty();
   await seedStandardBagTypesIfMissing();
   registerNotificationCrons();
 
@@ -39,7 +39,7 @@ async function bootstrap(): Promise<void> {
   process.on("SIGINT", () => {
     void shutdown("SIGINT");
   });
-  
+
   process.on("SIGTERM", () => {
     void shutdown("SIGTERM");
   });
