@@ -76,6 +76,32 @@ ALTER TABLE "cost_entries" DROP CONSTRAINT IF EXISTS "cost_entries_organization_
 ALTER TABLE "stock_adjustments" DROP CONSTRAINT IF EXISTS "stock_adjustments_lot_id_fkey";
 ALTER TABLE "stock_adjustments" DROP CONSTRAINT IF EXISTS "stock_adjustments_organization_id_fkey";
 
+-- Drop serial defaults before type conversion
+ALTER TABLE "organizations" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "super_admins" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "org_notes" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "impersonation_logs" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "subscriptions" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "users" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "user_sessions" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "api_keys" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "idempotency_keys" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "suppliers" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "buyers" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "warehouses" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "grades" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "bag_types" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "lots" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "auction_procurements" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "direct_agreements" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "direct_deliveries" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "contracts" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "shipments" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "allocations" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "shipment_documents" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "cost_entries" ALTER COLUMN "id" DROP DEFAULT;
+ALTER TABLE "stock_adjustments" ALTER COLUMN "id" DROP DEFAULT;
+
 -- Alter primary key columns
 ALTER TABLE "organizations"
   ALTER COLUMN "id" TYPE uuid USING gen_random_uuid(),

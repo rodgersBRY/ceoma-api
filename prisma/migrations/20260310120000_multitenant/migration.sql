@@ -41,18 +41,6 @@ CREATE UNIQUE INDEX "subscriptions_organization_id_key" ON "subscriptions"("orga
 -- CreateIndex
 CREATE UNIQUE INDEX "subscriptions_stripe_sub_id_key" ON "subscriptions"("stripe_sub_id");
 
--- Seed default organization if missing
-INSERT INTO "organizations" ("name", "slug")
-VALUES ('Default Organization', 'default')
-ON CONFLICT ("slug") DO NOTHING;
-
--- Seed default subscription for default org if missing
-INSERT INTO "subscriptions" ("organization_id", "plan", "status")
-SELECT o."id", 'starter', 'trialing'
-FROM "organizations" o
-WHERE o."slug" = 'default'
-ON CONFLICT ("organization_id") DO NOTHING;
-
 -- Add organization_id to users
 ALTER TABLE "users" ADD COLUMN "organization_id" INTEGER;
 UPDATE "users" SET "organization_id" = (SELECT "id" FROM "organizations" ORDER BY "id" LIMIT 1) WHERE "organization_id" IS NULL;

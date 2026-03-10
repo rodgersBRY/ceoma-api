@@ -43,6 +43,7 @@ type UserRow = {
   role: UserRole;
   is_active: boolean;
   organization_id: string;
+  organization_name?: string | null;
 };
 
 type UserListRow = {
@@ -90,6 +91,7 @@ function mapUserPublic(row: UserRow): Record<string, unknown> {
     role: row.role,
     is_active: row.is_active,
     organization_id: row.organization_id,
+    organization_name: row.organization_name ?? null,
   };
 }
 
@@ -128,6 +130,7 @@ export class AuthService {
 
     const created = await withTransaction(async (client) => {
       let organizationId = actor?.organizationId;
+      let organizationName: string | null = null;
 
       if (isBootstrap) {
         if (!input.organization_name) {
@@ -176,6 +179,7 @@ export class AuthService {
         }
 
         organizationId = orgResult.rows[0].id;
+        organizationName = input.organization_name;
 
         await client.query(
           `
@@ -200,7 +204,15 @@ export class AuthService {
         [email, passwordHash, input.full_name, role, organizationId],
       );
 
-      return result.rows[0];
+      if (!organizationName) {
+        const orgResult = await client.query<{ name: string }>(
+          "SELECT name FROM organizations WHERE id = $1",
+          [organizationId],
+        );
+        organizationName = orgResult.rows[0]?.name ?? null;
+      }
+
+      return { ...result.rows[0], organization_name: organizationName };
     });
 
     return mapUserPublic(created);
@@ -213,9 +225,18 @@ export class AuthService {
     const email = input.email.toLowerCase();
     const userResult = await query<UserRow>(
       `
-      SELECT id, email, password_hash, full_name, role, is_active, organization_id
-      FROM users
-      WHERE email = $1
+      SELECT
+        u.id,
+        u.email,
+        u.password_hash,
+        u.full_name,
+        u.role,
+        u.is_active,
+        u.organization_id,
+        o.name AS organization_name
+      FROM users u
+      JOIN organizations o ON o.id = u.organization_id
+      WHERE u.email = $1
       `,
       [email],
     );
@@ -356,10 +377,29 @@ export class AuthService {
       [newRefreshHash, newExpiry, session.id],
     );
 
+    const refreshedUserResult = await query<UserRow>(
+      `
+      SELECT
+        u.id,
+        u.email,
+        u.password_hash,
+        u.full_name,
+        u.role,
+        u.is_active,
+        u.organization_id,
+        o.name AS organization_name
+      FROM users u
+      JOIN organizations o ON o.id = u.organization_id
+      WHERE u.id = $1
+      `,
+      [session.user_id],
+    );
+
     return {
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
       token_type: "Bearer",
+      user: refreshedUserResult.rowCount ? mapUserPublic(refreshedUserResult.rows[0]) : undefined,
     };
   }
 
@@ -385,9 +425,18 @@ export class AuthService {
   async getCurrentUser(actor: AuthContext): Promise<Record<string, unknown>> {
     const result = await query<UserRow>(
       `
-      SELECT id, email, password_hash, full_name, role, is_active, organization_id
-      FROM users
-      WHERE id = $1
+      SELECT
+        u.id,
+        u.email,
+        u.password_hash,
+        u.full_name,
+        u.role,
+        u.is_active,
+        u.organization_id,
+        o.name AS organization_name
+      FROM users u
+      JOIN organizations o ON o.id = u.organization_id
+      WHERE u.id = $1
       `,
       [actor.userId],
     );
