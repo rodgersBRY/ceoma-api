@@ -77,6 +77,7 @@ async function resolveAuthContext(req: Request): Promise<AuthContext | undefined
       role: userResult.rows[0].role,
       organizationId: userResult.rows[0].organization_id,
       sessionId: claims.sessionId,
+      impersonated: claims.impersonated === true,
     };
     return auth;
   }

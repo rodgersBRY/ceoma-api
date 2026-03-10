@@ -33,6 +33,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
       ip: req.ip ?? null,
       user_agent: req.headers["user-agent"] ?? null,
       request_id: req.requestId ?? null,
+      impersonated: req.auth?.impersonated ?? false,
     });
   });
 

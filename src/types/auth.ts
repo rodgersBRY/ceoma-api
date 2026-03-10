@@ -7,4 +7,5 @@ export type AuthContext = {
   organizationId: number;
   sessionId?: string;
   apiKeyId?: string;
+  impersonated?: boolean;
 };

@@ -26,6 +26,7 @@ async function resolvePlan(organizationId: number): Promise<PlanTier> {
   if (plan === "growth" || plan === "enterprise") {
     return plan;
   }
+
   return "starter";
 }
 
@@ -38,6 +39,7 @@ async function countUsers(organizationId: number): Promise<number> {
     `,
     [organizationId],
   );
+
   return Number(result.rows[0]?.total ?? 0);
 }
 
@@ -50,6 +52,7 @@ async function countLots(organizationId: number): Promise<number> {
     `,
     [organizationId],
   );
+
   return Number(result.rows[0]?.total ?? 0);
 }
 
@@ -65,6 +68,7 @@ async function countApiKeys(organizationId: number): Promise<number> {
     `,
     [organizationId],
   );
+
   return Number(result.rows[0]?.total ?? 0);
 }
 
@@ -99,6 +103,7 @@ export function planGuard(resource: PlanResource) {
 
       if (!Number.isFinite(limit)) {
         next();
+        
         return;
       }
 

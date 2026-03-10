@@ -20,6 +20,10 @@ const jwtAccessSecret = process.env.JWT_ACCESS_SECRET;
 const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
 const jwtAccessTtl = process.env.JWT_ACCESS_TTL ?? "1h";
 const jwtRefreshTtl = process.env.JWT_REFRESH_TTL ?? "7d";
+const superAdminJwtSecret = process.env.SUPER_ADMIN_JWT_SECRET;
+const superAdminJwtTtl = process.env.SUPER_ADMIN_JWT_TTL ?? "8h";
+const superAdminBootstrapEmail = process.env.SUPER_ADMIN_BOOTSTRAP_EMAIL;
+const superAdminBootstrapPassword = process.env.SUPER_ADMIN_BOOTSTRAP_PASSWORD;
 const dataEncryptionKey = process.env.DATA_ENCRYPTION_KEY;
 const csrfSecret = process.env.CSRF_SECRET;
 const dbSslMode = process.env.DB_SSL_MODE ?? (nodeEnv === "production" ? "require" : "disable");
@@ -58,11 +62,20 @@ if (!jwtAccessSecret || jwtAccessSecret.length < 32) {
 if (!jwtRefreshSecret || jwtRefreshSecret.length < 32) {
   throw new Error("JWT_REFRESH_SECRET is required and must be at least 32 characters");
 }
+if (!superAdminJwtSecret || superAdminJwtSecret.length < 32) {
+  throw new Error("SUPER_ADMIN_JWT_SECRET is required and must be at least 32 characters");
+}
 if (!dataEncryptionKey) {
   throw new Error("DATA_ENCRYPTION_KEY is required (base64 32-byte key)");
 }
 if (!csrfSecret || csrfSecret.length < 32) {
   throw new Error("CSRF_SECRET is required and must be at least 32 characters");
+}
+if (
+  (superAdminBootstrapEmail && !superAdminBootstrapPassword) ||
+  (!superAdminBootstrapEmail && superAdminBootstrapPassword)
+) {
+  throw new Error("SUPER_ADMIN_BOOTSTRAP_EMAIL and SUPER_ADMIN_BOOTSTRAP_PASSWORD must be set together");
 }
 if (dbSslMode !== "disable" && dbSslMode !== "require") {
   throw new Error("DB_SSL_MODE must be either 'disable' or 'require'");
@@ -110,6 +123,10 @@ export const env = {
   jwtRefreshSecret,
   jwtAccessTtl,
   jwtRefreshTtl,
+  superAdminJwtSecret,
+  superAdminJwtTtl,
+  superAdminBootstrapEmail,
+  superAdminBootstrapPassword,
   dataEncryptionKey,
   csrfSecret,
   dbSslMode,

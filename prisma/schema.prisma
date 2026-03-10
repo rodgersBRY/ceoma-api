@@ -38,6 +38,11 @@ enum ContractStatus {
   closed
 }
 
+enum OrganizationStatus {
+  active
+  suspended
+}
+
 enum AllocationStatus {
   allocated
   shipped
@@ -91,21 +96,75 @@ model Organization {
   name      String
   slug      String   @unique
   country   String?
+  status    OrganizationStatus @default(active)
+  onboardedBy Int?   @map("onboarded_by")
   createdAt DateTime @default(now()) @map("created_at")
 
-  users        User[]
-  subscription Subscription?
-  suppliers    Supplier[]
-  buyers       Buyer[]
-  warehouses   Warehouse[]
-  grades       Grade[]
-  bagTypes     BagType[]
-  lots         Lot[]
-  contracts    Contract[]
-  shipments    Shipment[]
-  costEntries  CostEntry[]
+  users               User[]
+  subscription        Subscription?
+  suppliers           Supplier[]
+  buyers              Buyer[]
+  warehouses          Warehouse[]
+  grades              Grade[]
+  bagTypes            BagType[]
+  lots                Lot[]
+  contracts           Contract[]
+  shipments           Shipment[]
+  costEntries         CostEntry[]
+  auctionProcurements AuctionProcurement[]
+  directAgreements    DirectAgreement[]
+  directDeliveries    DirectDelivery[]
+  allocations         Allocation[]
+  shipmentDocuments   ShipmentDocument[]
+  stockAdjustments    StockAdjustment[]
+  notes               OrgNote[]
+  impersonationLogs   ImpersonationLog[]
+  onboardedByAdmin    SuperAdmin? @relation("org_onboarded_by", fields: [onboardedBy], references: [id])
 
+  @@index([status], map: "idx_org_status")
   @@map("organizations")
+}
+
+model SuperAdmin {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  notes           OrgNote[]
+  impersonations  ImpersonationLog[]
+  onboardedOrgs   Organization[] @relation("org_onboarded_by")
+
+  @@map("super_admins")
+}
+
+model OrgNote {
+  id             Int      @id @default(autoincrement())
+  organizationId Int      @map("organization_id")
+  superAdminId   Int      @map("super_admin_id")
+  note           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  superAdmin   SuperAdmin   @relation(fields: [superAdminId], references: [id])
+
+  @@index([organizationId], map: "idx_org_notes_org")
+  @@index([superAdminId], map: "idx_org_notes_admin")
+  @@map("org_notes")
+}
+
+model ImpersonationLog {
+  id             Int      @id @default(autoincrement())
+  organizationId Int      @map("organization_id")
+  superAdminId   Int      @map("super_admin_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  superAdmin   SuperAdmin   @relation(fields: [superAdminId], references: [id])
+
+  @@index([organizationId], map: "idx_impersonation_org")
+  @@index([superAdminId], map: "idx_impersonation_admin")
+  @@map("impersonation_logs")
 }
 
 model Subscription {
@@ -127,20 +186,20 @@ model Subscription {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  fullName     String    @map("full_name")
-  role         UserRole  @default(trader)
-  isActive     Boolean   @default(true) @map("is_active")
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
-  organizationId Int     @map("organization_id")
+  id             Int       @id @default(autoincrement())
+  email          String    @unique
+  passwordHash   String    @map("password_hash")
+  fullName       String    @map("full_name")
+  role           UserRole  @default(trader)
+  isActive       Boolean   @default(true) @map("is_active")
+  lastLoginAt    DateTime? @map("last_login_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+  organizationId Int       @map("organization_id")
 
-  sessions UserSession[]
-  apiKeys  ApiKey[]
-  organization Organization @relation(fields: [organizationId], references: [id])
+  sessions     UserSession[]
+  apiKeys      ApiKey[]
+  organization Organization  @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_users_org")
   @@map("users")
@@ -201,70 +260,70 @@ model IdempotencyKey {
 }
 
 model Supplier {
-  id           Int          @id @default(autoincrement())
-  name         String
-  supplierType SupplierType @map("supplier_type")
-  country      String?
-  createdAt    DateTime     @default(now()) @map("created_at")
-  organizationId Int        @map("organization_id")
+  id             Int          @id @default(autoincrement())
+  name           String
+  supplierType   SupplierType @map("supplier_type")
+  country        String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId Int          @map("organization_id")
 
   lots             Lot[]
   directAgreements DirectAgreement[]
   auctionRecords   AuctionProcurement[] @relation("auction_marketing_agent")
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization     Organization         @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_suppliers_org")
   @@map("suppliers")
 }
 
 model Buyer {
-  id        Int        @id @default(autoincrement())
-  name      String
-  country   String?
-  createdAt DateTime   @default(now()) @map("created_at")
-  organizationId Int   @map("organization_id")
-  contracts Contract[]
-  organization Organization @relation(fields: [organizationId], references: [id])
+  id             Int          @id @default(autoincrement())
+  name           String
+  country        String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId Int          @map("organization_id")
+  contracts      Contract[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_buyers_org")
   @@map("buyers")
 }
 
 model Warehouse {
-  id        Int      @id @default(autoincrement())
-  name      String
-  location  String?
-  createdAt DateTime @default(now()) @map("created_at")
-  organizationId Int @map("organization_id")
-  lots      Lot[]
-  organization Organization @relation(fields: [organizationId], references: [id])
+  id             Int          @id @default(autoincrement())
+  name           String
+  location       String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId Int          @map("organization_id")
+  lots           Lot[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_warehouses_org")
   @@map("warehouses")
 }
 
 model Grade {
-  id          Int        @id @default(autoincrement())
-  code        String
-  description String?
-  createdAt   DateTime   @default(now()) @map("created_at")
-  organizationId Int     @map("organization_id")
-  lots        Lot[]
-  contracts   Contract[]
-  organization Organization @relation(fields: [organizationId], references: [id])
+  id             Int          @id @default(autoincrement())
+  code           String
+  description    String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId Int          @map("organization_id")
+  lots           Lot[]
+  contracts      Contract[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_grades_org")
   @@map("grades")
 }
 
 model BagType {
-  id        Int      @id @default(autoincrement())
-  name      String
-  weightKg  Decimal  @map("weight_kg") @db.Decimal(10, 3)
-  createdAt DateTime @default(now()) @map("created_at")
-  organizationId Int @map("organization_id")
-  lots      Lot[]
-  organization Organization @relation(fields: [organizationId], references: [id])
+  id             Int          @id @default(autoincrement())
+  name           String
+  weightKg       Decimal      @map("weight_kg") @db.Decimal(10, 3)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId Int          @map("organization_id")
+  lots           Lot[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_bag_types_org")
   @@map("bag_types")
@@ -299,7 +358,7 @@ model Lot {
   allocations      Allocation[]
   costEntries      CostEntry[]
   stockAdjustments StockAdjustment[]
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization     Organization        @relation(fields: [organizationId], references: [id])
 
   @@unique([organizationId, lotCode], map: "uniq_lots_org_code")
   @@index([source], map: "idx_lots_source")
@@ -318,9 +377,9 @@ model AuctionProcurement {
   createdAt           DateTime @default(now()) @map("created_at")
   organizationId      Int      @map("organization_id")
 
-  lot            Lot      @relation(fields: [lotId], references: [id])
-  marketingAgent Supplier @relation("auction_marketing_agent", fields: [marketingAgentId], references: [id])
-  organization Organization @relation(fields: [organizationId], references: [id])
+  lot            Lot          @relation(fields: [lotId], references: [id])
+  marketingAgent Supplier     @relation("auction_marketing_agent", fields: [marketingAgentId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_auction_procurements_org")
   @@map("auction_procurements")
@@ -336,9 +395,9 @@ model DirectAgreement {
   createdAt          DateTime @default(now()) @map("created_at")
   organizationId     Int      @map("organization_id")
 
-  supplier   Supplier         @relation(fields: [supplierId], references: [id])
-  deliveries DirectDelivery[]
-  organization Organization @relation(fields: [organizationId], references: [id])
+  supplier     Supplier         @relation(fields: [supplierId], references: [id])
+  deliveries   DirectDelivery[]
+  organization Organization     @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_direct_agreements_org")
   @@map("direct_agreements")
@@ -356,9 +415,9 @@ model DirectDelivery {
   createdAt         DateTime @default(now()) @map("created_at")
   organizationId    Int      @map("organization_id")
 
-  agreement DirectAgreement @relation(fields: [agreementId], references: [id])
-  lot       Lot             @relation(fields: [lotId], references: [id])
-  organization Organization @relation(fields: [organizationId], references: [id])
+  agreement    DirectAgreement @relation(fields: [agreementId], references: [id])
+  lot          Lot             @relation(fields: [lotId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_direct_deliveries_org")
   @@map("direct_deliveries")
@@ -381,10 +440,10 @@ model Contract {
   createdAt           DateTime       @default(now()) @map("created_at")
   organizationId      Int            @map("organization_id")
 
-  buyer       Buyer        @relation(fields: [buyerId], references: [id])
-  grade       Grade?       @relation(fields: [gradeId], references: [id])
-  allocations Allocation[]
-  shipments   Shipment[]
+  buyer        Buyer        @relation(fields: [buyerId], references: [id])
+  grade        Grade?       @relation(fields: [gradeId], references: [id])
+  allocations  Allocation[]
+  shipments    Shipment[]
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([organizationId, contractNumber], map: "uniq_contracts_org_number")
@@ -405,11 +464,11 @@ model Shipment {
   createdAt            DateTime       @default(now()) @map("created_at")
   organizationId       Int            @map("organization_id")
 
-  contract    Contract           @relation(fields: [contractId], references: [id])
-  allocations Allocation[]
-  documents   ShipmentDocument[]
-  costs       CostEntry[]
-  organization Organization @relation(fields: [organizationId], references: [id])
+  contract     Contract           @relation(fields: [contractId], references: [id])
+  allocations  Allocation[]
+  documents    ShipmentDocument[]
+  costs        CostEntry[]
+  organization Organization       @relation(fields: [organizationId], references: [id])
 
   @@unique([organizationId, shipmentNumber], map: "uniq_shipments_org_number")
   @@index([contractId], map: "idx_shipments_contract")
@@ -418,18 +477,18 @@ model Shipment {
 }
 
 model Allocation {
-  id          Int              @id @default(autoincrement())
-  contractId  Int              @map("contract_id")
-  lotId       Int              @map("lot_id")
-  allocatedKg Decimal          @map("allocated_kg") @db.Decimal(12, 3)
-  status      AllocationStatus @default(allocated)
-  shipmentId  Int?             @map("shipment_id")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  organizationId Int           @map("organization_id")
+  id             Int              @id @default(autoincrement())
+  contractId     Int              @map("contract_id")
+  lotId          Int              @map("lot_id")
+  allocatedKg    Decimal          @map("allocated_kg") @db.Decimal(12, 3)
+  status         AllocationStatus @default(allocated)
+  shipmentId     Int?             @map("shipment_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  organizationId Int              @map("organization_id")
 
-  contract Contract  @relation(fields: [contractId], references: [id])
-  lot      Lot       @relation(fields: [lotId], references: [id])
-  shipment Shipment? @relation(fields: [shipmentId], references: [id])
+  contract     Contract     @relation(fields: [contractId], references: [id])
+  lot          Lot          @relation(fields: [lotId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([contractId], map: "idx_allocations_contract")
@@ -440,14 +499,14 @@ model Allocation {
 }
 
 model ShipmentDocument {
-  id           Int          @id @default(autoincrement())
-  shipmentId   Int          @map("shipment_id")
-  documentType DocumentType @map("document_type")
-  payload      Json         @default("{}")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  organizationId Int        @map("organization_id")
+  id             Int          @id @default(autoincrement())
+  shipmentId     Int          @map("shipment_id")
+  documentType   DocumentType @map("document_type")
+  payload        Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId Int          @map("organization_id")
 
-  shipment Shipment @relation(fields: [shipmentId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_shipment_documents_org")
@@ -455,18 +514,18 @@ model ShipmentDocument {
 }
 
 model CostEntry {
-  id         Int      @id @default(autoincrement())
-  lotId      Int?     @map("lot_id")
-  shipmentId Int?     @map("shipment_id")
-  category   String
-  amount     Decimal  @db.Decimal(14, 2)
-  currency   String   @default("USD")
-  notes      String?
-  createdAt  DateTime @default(now()) @map("created_at")
-  organizationId Int  @map("organization_id")
+  id             Int      @id @default(autoincrement())
+  lotId          Int?     @map("lot_id")
+  shipmentId     Int?     @map("shipment_id")
+  category       String
+  amount         Decimal  @db.Decimal(14, 2)
+  currency       String   @default("USD")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  organizationId Int      @map("organization_id")
 
-  lot      Lot?      @relation(fields: [lotId], references: [id])
-  shipment Shipment? @relation(fields: [shipmentId], references: [id])
+  lot          Lot?         @relation(fields: [lotId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_cost_entries_org")
@@ -474,15 +533,15 @@ model CostEntry {
 }
 
 model StockAdjustment {
-  id           Int      @id @default(autoincrement())
-  lotId        Int      @map("lot_id")
-  adjustmentKg Decimal  @map("adjustment_kg") @db.Decimal(12, 3)
-  reason       String
-  approvedBy   String   @map("approved_by")
-  createdAt    DateTime @default(now()) @map("created_at")
-  organizationId Int    @map("organization_id")
+  id             Int      @id @default(autoincrement())
+  lotId          Int      @map("lot_id")
+  adjustmentKg   Decimal  @map("adjustment_kg") @db.Decimal(12, 3)
+  reason         String
+  approvedBy     String   @map("approved_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  organizationId Int      @map("organization_id")
 
-  lot Lot @relation(fields: [lotId], references: [id])
+  lot          Lot          @relation(fields: [lotId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId], map: "idx_stock_adjustments_org")

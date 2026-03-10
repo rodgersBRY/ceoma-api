@@ -1,5 +1,6 @@
 import { createApp } from "./app/createApp.js";
 import { seedInitialUsersIfEmpty } from "./bootstrap/seedInitialUsers.js";
+import { seedSuperAdminsIfConfigured } from "./bootstrap/seedSuperAdmins.js";
 import { seedStandardBagTypesIfMissing } from "./bootstrap/seedStandardBagTypes.js";
 import { logger } from "./common/logger.js";
 import { env } from "./config/env.js";
@@ -17,6 +18,7 @@ async function bootstrap(): Promise<void> {
 
   await verifyDatabaseConnection();
 
+  await seedSuperAdminsIfConfigured();
   await seedInitialUsersIfEmpty();
   await seedStandardBagTypesIfMissing();
   registerNotificationCrons();

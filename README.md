@@ -36,6 +36,33 @@ CEOMS runs in shared-database, row-level isolation mode:
 
 Bootstrap flow: the very first registration creates the first organization, its subscription, and the initial admin user.
 
+## Super admin layer
+
+Platform operators authenticate separately via `/api/internal/v1` with a dedicated JWT secret.
+This surface can manage organizations, subscriptions, and impersonation without touching tenant auth.
+
+Super admin tokens are issued via:
+
+- `POST /api/internal/v1/auth/login`
+
+Internal endpoints (super admin only):
+
+- `GET /api/internal/v1/orgs`
+- `POST /api/internal/v1/orgs`
+- `GET /api/internal/v1/orgs/:orgId`
+- `PATCH /api/internal/v1/orgs/:orgId/plan`
+- `PATCH /api/internal/v1/orgs/:orgId/trial`
+- `PATCH /api/internal/v1/orgs/:orgId/status`
+- `POST /api/internal/v1/orgs/:orgId/notes`
+- `POST /api/internal/v1/orgs/:orgId/impersonate`
+- `GET /api/internal/v1/revenue`
+- `GET /api/internal/v1/alerts`
+
+Tenant admins never access these routes. Super admin tokens are signed with `SUPER_ADMIN_JWT_SECRET` and validated by a separate middleware.
+`SUPER_ADMIN_JWT_TTL` controls token expiry (default `8h`).
+
+Suspended organizations are blocked from mutating requests (read-only access only).
+
 ## Security Controls Implemented
 
 - Authentication and authorization:
@@ -164,6 +191,15 @@ Set these in `.env` to enable email notifications and daily alerts:
 - `API_KEY_EXPIRY_CRON_SCHEDULE` (default `15 7 * * *`)
 - `API_KEY_EXPIRY_ALERT_WINDOW_DAYS` (default `7`)
 
+## Super admin bootstrap (optional)
+
+If you want the API to create the first super admin automatically:
+
+- `SUPER_ADMIN_BOOTSTRAP_EMAIL`
+- `SUPER_ADMIN_BOOTSTRAP_PASSWORD`
+
+If those are set and no super admins exist, the server will create one on startup.
+
 ## First-run default users
 
 On first API startup (when `users` table is empty), the server auto-creates one test user per role from:
@@ -282,6 +318,17 @@ npm run prisma:migrate:deploy
 
 ## Key endpoints
 
+- `POST /api/internal/v1/auth/login`
+- `GET /api/internal/v1/orgs`
+- `POST /api/internal/v1/orgs`
+- `GET /api/internal/v1/orgs/:orgId`
+- `PATCH /api/internal/v1/orgs/:orgId/plan`
+- `PATCH /api/internal/v1/orgs/:orgId/trial`
+- `PATCH /api/internal/v1/orgs/:orgId/status`
+- `POST /api/internal/v1/orgs/:orgId/notes`
+- `POST /api/internal/v1/orgs/:orgId/impersonate`
+- `GET /api/internal/v1/revenue`
+- `GET /api/internal/v1/alerts`
 - `GET /api/v1/health`
 - `GET /api/v1/auth/csrf-token`
 - `POST /api/v1/auth/register`

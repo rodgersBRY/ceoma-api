@@ -11,6 +11,7 @@ type BaseClaims = {
   organizationId: number;
   kind: TokenKind;
   sessionId: string;
+  impersonated?: boolean;
 };
 
 export type AccessTokenClaims = BaseClaims & {
@@ -26,9 +27,11 @@ export function signAccessToken(payload: {
   role: string;
   organizationId: number;
   sessionId: string;
+  impersonated?: boolean;
+  expiresIn?: SignOptions["expiresIn"];
 }): string {
   const options: SignOptions = {
-    expiresIn: env.jwtAccessTtl as SignOptions["expiresIn"],
+    expiresIn: payload.expiresIn ?? (env.jwtAccessTtl as SignOptions["expiresIn"]),
     issuer: "ceoms-api",
     audience: "ceoms-clients",
   };
@@ -40,6 +43,7 @@ export function signAccessToken(payload: {
       organizationId: payload.organizationId,
       kind: "access",
       sessionId: payload.sessionId,
+      impersonated: payload.impersonated ?? false,
     } satisfies AccessTokenClaims,
     env.jwtAccessSecret,
     options,
