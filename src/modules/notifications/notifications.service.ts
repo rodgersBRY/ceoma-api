@@ -61,7 +61,7 @@ export class NotificationService {
 
   private async findUsersByRoles(
     roles: NotificationRecipientRoles,
-    organizationId: number,
+    organizationId: string,
   ): Promise<string[]> {
     if (roles.length === 0) {
       return [];
@@ -155,7 +155,7 @@ export class NotificationService {
     roles: NotificationRecipientRoles;
     subject: string;
     html: string;
-    organizationId: number;
+    organizationId: string;
     extraRecipients?: string[];
   }): Promise<void> {
     try {

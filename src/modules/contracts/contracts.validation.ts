@@ -3,8 +3,8 @@ import { z } from "zod";
 export const contractSchema = z
   .object({
     contract_number: z.string().min(1),
-    buyer_id: z.number().int().positive(),
-    grade_id: z.number().int().positive().optional(),
+    buyer_id: z.string().uuid(),
+    grade_id: z.string().uuid().optional(),
     quantity_kg: z.number().positive(),
     price_per_kg: z.number().positive(),
     price_terms: z.enum(["fob", "cif"]),
@@ -20,7 +20,7 @@ export const contractSchema = z
   );
 
 export const allocationSchema = z.object({
-  lot_id: z.number().int().positive(),
+  lot_id: z.string().uuid(),
   allocated_kg: z.number().positive(),
 });
 

@@ -30,7 +30,7 @@ export class MasterService {
   // SUPPLIER SERVICES
   async createSupplier(
     input: SupplierInput,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -45,9 +45,9 @@ export class MasterService {
   }
 
   async updateSupplier(
-    id: number,
+    id: string,
     input: Partial<SupplierInput>,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -65,7 +65,7 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteSupplier(id: number, organizationId: number): Promise<unknown> {
+  async deleteSupplier(id: string, organizationId: string): Promise<unknown> {
     const result = await query(
       `DELETE FROM suppliers WHERE id = $1 AND organization_id = $2 RETURNING *`,
       [id, organizationId],
@@ -79,7 +79,7 @@ export class MasterService {
 
   async listSuppliers(
     listQuery: ListQueryParams,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
@@ -126,7 +126,7 @@ export class MasterService {
   // BUYER SERVICES
   async createBuyer(
     input: BuyerInput,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -140,9 +140,9 @@ export class MasterService {
   }
 
   async updateBuyer(
-    id: number,
+    id: string,
     input: Partial<BuyerInput>,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -157,7 +157,7 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteBuyer(id: number, organizationId: number): Promise<unknown> {
+  async deleteBuyer(id: string, organizationId: string): Promise<unknown> {
     const result = await query(
       `DELETE FROM buyers WHERE id = $1 AND organization_id = $2 RETURNING *`,
       [id, organizationId],
@@ -171,7 +171,7 @@ export class MasterService {
 
   async listBuyers(
     listQuery: ListQueryParams,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
@@ -214,7 +214,7 @@ export class MasterService {
   // WAREHOUSE SERVICES
   async createWarehouse(
     input: WarehouseInput,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -228,9 +228,9 @@ export class MasterService {
   }
 
   async updateWarehouse(
-    id: number,
+    id: string,
     input: Partial<WarehouseInput>,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -245,7 +245,7 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteWarehouse(id: number, organizationId: number): Promise<unknown> {
+  async deleteWarehouse(id: string, organizationId: string): Promise<unknown> {
     const result = await query(
       `DELETE FROM warehouses WHERE id = $1 AND organization_id = $2 RETURNING *`,
       [id, organizationId],
@@ -259,7 +259,7 @@ export class MasterService {
 
   async listWarehouses(
     listQuery: ListQueryParams,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
@@ -302,7 +302,7 @@ export class MasterService {
   // GRADE SERVICES
   async createGrade(
     input: GradeInput,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -316,9 +316,9 @@ export class MasterService {
   }
 
   async updateGrade(
-    id: number,
+    id: string,
     input: Partial<GradeInput>,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -333,7 +333,7 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteGrade(id: number, organizationId: number): Promise<unknown> {
+  async deleteGrade(id: string, organizationId: string): Promise<unknown> {
     const result = await query(
       `DELETE FROM grades WHERE id = $1 AND organization_id = $2 RETURNING *`,
       [id, organizationId],
@@ -347,7 +347,7 @@ export class MasterService {
 
   async listGrades(
     listQuery: ListQueryParams,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
@@ -392,7 +392,7 @@ export class MasterService {
   // BAG TYPE SERVICES
   async createBagType(
     input: BagTypeInput,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -406,9 +406,9 @@ export class MasterService {
   }
 
   async updateBagType(
-    id: number,
+    id: string,
     input: Partial<BagTypeInput>,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const result = await query(
       `
@@ -423,7 +423,7 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteBagType(id: number, organizationId: number): Promise<unknown> {
+  async deleteBagType(id: string, organizationId: string): Promise<unknown> {
     const result = await query(
       `DELETE FROM bag_types WHERE id = $1 AND organization_id = $2 RETURNING *`,
       [id, organizationId],
@@ -437,7 +437,7 @@ export class MasterService {
 
   async listBagTypes(
     listQuery: ListQueryParams,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];

@@ -38,9 +38,9 @@ export function nextContractStatus(
 export async function ensureReference(
   client: PoolClient,
   table: string,
-  id: number,
+  id: string,
   label: string,
-  organizationId?: number,
+  organizationId?: string,
 ): Promise<void> {
   if (!/^[a-z_]+$/.test(table)) {
     throw new ApiError(500, `Unsafe SQL identifier for table: ${table}`);
@@ -61,8 +61,8 @@ export async function ensureReference(
 
 export async function refreshLotStatus(
   client: PoolClient,
-  lotId: number,
-  organizationId?: number,
+  lotId: string,
+  organizationId?: string,
 ): Promise<void> {
   const lotResult =
     organizationId === undefined

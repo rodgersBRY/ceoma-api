@@ -9,13 +9,13 @@ import { seedStandardBagTypesForOrg } from "../../bootstrap/seedStandardBagTypes
 import { query, withTransaction } from "../../db/pool.js";
 
 type SuperAdminRow = {
-  id: number;
+  id: string;
   email: string;
   password_hash: string;
 };
 
 type OrgRow = {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   country: string | null;
@@ -31,7 +31,7 @@ type OrgRow = {
 };
 
 type OrgUserRow = {
-  id: number;
+  id: string;
   email: string;
   full_name: string;
   role: string;
@@ -40,7 +40,7 @@ type OrgUserRow = {
 };
 
 type OrgNoteRow = {
-  id: number;
+  id: string;
   note: string;
   created_at: Date;
   author_email: string;
@@ -188,7 +188,7 @@ export class InternalService {
     return buildPaginatedResult(data, Number(countResult.rows[0]?.total ?? 0), listQuery);
   }
 
-  async getOrganization(orgId: number): Promise<unknown> {
+  async getOrganization(orgId: string): Promise<unknown> {
     const orgResult = await query<OrgRow>(
       `
       SELECT
@@ -287,7 +287,7 @@ export class InternalService {
       admin_password: string;
       plan?: string;
       trial_days?: number;
-      onboarded_by?: number;
+      onboarded_by?: string;
     },
   ): Promise<unknown> {
     const plan = input.plan ?? "growth";
@@ -300,7 +300,7 @@ export class InternalService {
       }
 
       let slug = baseSlug;
-      let orgResult = await client.query<{ id: number }>(
+      let orgResult = await client.query<{ id: string }>(
         `
         INSERT INTO organizations (name, slug, country, onboarded_by)
         VALUES ($1, $2, $3, $4)
@@ -314,7 +314,7 @@ export class InternalService {
       while (orgResult.rowCount === 0 && attempts < 5) {
         attempts += 1;
         slug = `${baseSlug}-${Math.floor(Math.random() * 10000)}`;
-        orgResult = await client.query<{ id: number }>(
+        orgResult = await client.query<{ id: string }>(
           `
           INSERT INTO organizations (name, slug, country, onboarded_by)
           VALUES ($1, $2, $3, $4)
@@ -363,7 +363,7 @@ export class InternalService {
     return this.getOrganization(created);
   }
 
-  async updatePlan(orgId: number, input: { plan: string; status?: string }): Promise<unknown> {
+  async updatePlan(orgId: string, input: { plan: string; status?: string }): Promise<unknown> {
     const result = await query(
       `
       UPDATE subscriptions
@@ -380,7 +380,7 @@ export class InternalService {
   }
 
   async extendTrial(
-    orgId: number,
+    orgId: string,
     input: { extend_days?: number; trial_ends_at?: string },
   ): Promise<unknown> {
     let result;
@@ -416,7 +416,7 @@ export class InternalService {
     return result.rows[0];
   }
 
-  async updateOrganizationStatus(orgId: number, status: string): Promise<unknown> {
+  async updateOrganizationStatus(orgId: string, status: string): Promise<unknown> {
     const result = await query(
       `
       UPDATE organizations
@@ -432,7 +432,7 @@ export class InternalService {
     return result.rows[0];
   }
 
-  async addNote(orgId: number, superAdminId: number, note: string): Promise<unknown> {
+  async addNote(orgId: string, superAdminId: string, note: string): Promise<unknown> {
     const result = await query(
       `
       INSERT INTO org_notes (organization_id, super_admin_id, note)
@@ -444,8 +444,8 @@ export class InternalService {
     return result.rows[0];
   }
 
-  async impersonate(orgId: number, superAdminId: number): Promise<unknown> {
-    const userResult = await query<{ id: number }>(
+  async impersonate(orgId: string, superAdminId: string): Promise<unknown> {
+    const userResult = await query<{ id: string }>(
       `
       SELECT id
       FROM users
@@ -549,7 +549,7 @@ export class InternalService {
       `,
     );
 
-    for (const row of trialResult.rows as Array<{ id: number; name: string; trial_ends_at: Date }>) {
+    for (const row of trialResult.rows as Array<{ id: string; name: string; trial_ends_at: Date }>) {
       alerts.push({
         type: "trial_expiring",
         organization_id: row.id,
@@ -569,7 +569,7 @@ export class InternalService {
       `,
     );
 
-    for (const row of pastDueResult.rows as Array<{ id: number; name: string }>) {
+    for (const row of pastDueResult.rows as Array<{ id: string; name: string }>) {
       alerts.push({
         type: "past_due",
         organization_id: row.id,

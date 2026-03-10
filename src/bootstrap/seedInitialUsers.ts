@@ -25,7 +25,7 @@ export async function seedInitialUsersIfEmpty(): Promise<void> {
       totalUsers: bootstrapUsers.length,
     });
 
-    const orgResult = await client.query<{ id: number }>(
+    const orgResult = await client.query<{ id: string }>(
       `
       INSERT INTO organizations (name, slug)
       VALUES ('Default Organization', 'default')
@@ -35,7 +35,7 @@ export async function seedInitialUsersIfEmpty(): Promise<void> {
     );
     const organizationId =
       orgResult.rows[0]?.id ??
-      (await client.query<{ id: number }>(
+      (await client.query<{ id: string }>(
         `SELECT id FROM organizations WHERE slug = 'default' LIMIT 1`,
       )).rows[0]?.id;
 

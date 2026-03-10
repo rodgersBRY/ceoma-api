@@ -89,6 +89,12 @@ Suspended organizations are blocked from mutating requests (read-only access onl
   - idempotency protection for mutating requests (`Idempotency-Key`)
   - API versioning under `/api/v1`
 
+## Identifier format
+
+All primary and foreign keys are UUIDs (v4). Any `:id` path params or `filter_*` values that reference IDs must be UUID strings.
+
+UUID migration note: the UUID migration assumes empty tables. For dev, run `prisma migrate reset` after pulling the migration. For production, you must perform a controlled data migration before deploying.
+
 ## Plan enforcement
 
 The API enforces plan limits on write operations using `planGuard` middleware:

@@ -12,7 +12,7 @@ const PLAN_LIMITS: Record<PlanTier, Record<PlanResource, number>> = {
   enterprise: { users: Number.POSITIVE_INFINITY, lots: Number.POSITIVE_INFINITY, api_keys: Number.POSITIVE_INFINITY },
 };
 
-async function resolvePlan(organizationId: number): Promise<PlanTier> {
+async function resolvePlan(organizationId: string): Promise<PlanTier> {
   const result = await query<{ plan: string }>(
     `
     SELECT plan::text AS plan
@@ -30,7 +30,7 @@ async function resolvePlan(organizationId: number): Promise<PlanTier> {
   return "starter";
 }
 
-async function countUsers(organizationId: number): Promise<number> {
+async function countUsers(organizationId: string): Promise<number> {
   const result = await query<{ total: number }>(
     `
     SELECT COUNT(*)::int AS total
@@ -43,7 +43,7 @@ async function countUsers(organizationId: number): Promise<number> {
   return Number(result.rows[0]?.total ?? 0);
 }
 
-async function countLots(organizationId: number): Promise<number> {
+async function countLots(organizationId: string): Promise<number> {
   const result = await query<{ total: number }>(
     `
     SELECT COUNT(*)::int AS total
@@ -56,7 +56,7 @@ async function countLots(organizationId: number): Promise<number> {
   return Number(result.rows[0]?.total ?? 0);
 }
 
-async function countApiKeys(organizationId: number): Promise<number> {
+async function countApiKeys(organizationId: string): Promise<number> {
   const result = await query<{ total: number }>(
     `
     SELECT COUNT(*)::int AS total
@@ -72,7 +72,7 @@ async function countApiKeys(organizationId: number): Promise<number> {
   return Number(result.rows[0]?.total ?? 0);
 }
 
-async function countResource(resource: PlanResource, organizationId: number): Promise<number> {
+async function countResource(resource: PlanResource, organizationId: string): Promise<number> {
   switch (resource) {
     case "users":
       return countUsers(organizationId);

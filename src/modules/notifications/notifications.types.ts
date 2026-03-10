@@ -3,7 +3,7 @@ import { UserRole } from "../../types/auth.js";
 export type ShipmentStatus = "planned" | "stuffed" | "cleared" | "on_vessel" | "completed";
 
 export type NotificationContext = {
-  organizationId: number;
+  organizationId: string;
 };
 
 export type ShipmentCreatedNotificationPayload = NotificationContext & {

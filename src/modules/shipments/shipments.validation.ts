@@ -2,11 +2,11 @@ import { z } from "zod";
 
 export const shipmentCreateSchema = z.object({
   shipment_number: z.string().min(1),
-  contract_id: z.number().int().positive(),
+  contract_id: z.string().uuid(),
   container_number: z.string().optional(),
   seal_number: z.string().optional(),
   planned_departure: z.string().date().optional(),
-  allocation_ids: z.array(z.number().int().positive()).min(1),
+  allocation_ids: z.array(z.string().uuid()).min(1),
 });
 
 export const shipmentStatusSchema = z.object({

@@ -33,7 +33,7 @@ export const logoutSchema = z.object({
 
 export const createApiKeySchema = z.object({
   name: z.string().min(1),
-  user_id: z.uuid().optional(),
+  user_id: z.string().uuid().optional(),
   expires_in_days: z.number().int().positive().max(365).optional(),
 });
 

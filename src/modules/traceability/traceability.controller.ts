@@ -4,8 +4,9 @@ import { ApiError } from "../../common/errors/ApiError.js";
 import { traceabilityService } from "./traceability.service.js";
 
 export class TraceabilityController {
-  private parseUuid(value: string | undefined, label: string): string {
-    const raw = String(value ?? "").trim();
+  private parseUuid(value: string | string[] | undefined, label: string): string {
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    const raw = String(rawValue ?? "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(raw)) {
       throw new ApiError(400, `Invalid ${label}`);
     }

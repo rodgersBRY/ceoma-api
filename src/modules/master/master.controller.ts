@@ -11,13 +11,12 @@ import {
   warehouseSchema,
 } from "./master.validation.js";
 
-function parseEntityId(rawValue: string | string[] | undefined, entityLabel: string): number {
+function parseEntityId(rawValue: string | string[] | undefined, entityLabel: string): string {
   const candidate = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-  const parsed = Number(candidate);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new ApiError(400, `${entityLabel} id must be a positive integer`);
+  if (!candidate || !/^[0-9a-f-]{36}$/i.test(candidate)) {
+    throw new ApiError(400, `${entityLabel} id must be a valid UUID`);
   }
-  return parsed;
+  return candidate;
 }
 
 export class MasterController {

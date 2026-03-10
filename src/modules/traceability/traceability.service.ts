@@ -2,7 +2,7 @@ import { ApiError } from "../../common/errors/ApiError.js";
 import { query } from "../../db/pool.js";
 
 export class TraceabilityService {
-  async getLotTraceability(lotId: number, organizationId: number): Promise<unknown> {
+  async getLotTraceability(lotId: string, organizationId: string): Promise<unknown> {
     const lotResult = await query(
       "SELECT * FROM lots WHERE id = $1 AND organization_id = $2",
       [lotId, organizationId],
@@ -59,22 +59,22 @@ export class TraceabilityService {
       new Set(
         allocationsResult.rows
           .map((row: Record<string, unknown>) =>
-            row.shipment_id ? Number(row.shipment_id) : null,
+            row.shipment_id ? String(row.shipment_id) : null,
           )
-          .filter((id: number | null): id is number => id !== null),
+          .filter((id: string | null): id is string => id !== null),
       ),
     );
     const shipmentsResult =
       shipmentIds.length > 0
         ? await query(
-            "SELECT * FROM shipments WHERE id = ANY($1::int[]) AND organization_id = $2 ORDER BY id",
+            "SELECT * FROM shipments WHERE id = ANY($1::uuid[]) AND organization_id = $2 ORDER BY id",
             [shipmentIds, organizationId],
           )
         : { rows: [] };
     const docsResult =
       shipmentIds.length > 0
         ? await query(
-            "SELECT * FROM shipment_documents WHERE shipment_id = ANY($1::int[]) AND organization_id = $2 ORDER BY id",
+            "SELECT * FROM shipment_documents WHERE shipment_id = ANY($1::uuid[]) AND organization_id = $2 ORDER BY id",
             [shipmentIds, organizationId],
           )
         : { rows: [] };
@@ -88,7 +88,7 @@ export class TraceabilityService {
     };
   }
 
-  async getReferenceData(organizationId: number): Promise<unknown> {
+  async getReferenceData(organizationId: string): Promise<unknown> {
     const lotsResult = await query(
       `
       SELECT id, lot_code, source, status, crop_year

@@ -11,7 +11,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 let jobsRegistered = false;
 
 type ContractRiskRow = {
-  organization_id: number;
+  organization_id: string;
   contract_number: string;
   quantity_kg: string;
   allocated_kg: string;
@@ -19,7 +19,7 @@ type ContractRiskRow = {
 };
 
 type ApiKeyExpiryRow = {
-  organization_id: number;
+  organization_id: string;
   name: string;
   key_prefix: string;
   expires_at: Date;

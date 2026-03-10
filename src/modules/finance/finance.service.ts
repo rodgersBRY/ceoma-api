@@ -4,7 +4,7 @@ import { query, withTransaction } from "../../db/pool.js";
 import { CostEntryInput } from "./finance.validation.js";
 
 export class FinanceService {
-  async createCostEntry(input: CostEntryInput, organizationId: number): Promise<unknown> {
+  async createCostEntry(input: CostEntryInput, organizationId: string): Promise<unknown> {
     return withTransaction(async (client) => {
       if (input.lot_id) {
         await ensureReference(client, "lots", input.lot_id, "Lot", organizationId);
@@ -32,7 +32,7 @@ export class FinanceService {
     });
   }
 
-  async getContractProfitability(contractId: number, organizationId: number): Promise<unknown> {
+  async getContractProfitability(contractId: string, organizationId: string): Promise<unknown> {
     const contractResult = await query(
       "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2",
       [contractId, organizationId],
@@ -60,7 +60,7 @@ export class FinanceService {
 
     let shippedKg = 0;
     let cogs = 0;
-    const shipmentIds = new Set<number>();
+    const shipmentIds = new Set<string>();
     for (const row of allocationResult.rows) {
       const allocatedKg = toNumber(row.allocated_kg);
       const totalWeight = toNumber(row.weight_total_kg);
@@ -72,14 +72,14 @@ export class FinanceService {
       shippedKg += allocatedKg;
       cogs += allocatedKg * (base + additionalPerKg);
       if (row.shipment_id) {
-        shipmentIds.add(Number(row.shipment_id));
+        shipmentIds.add(String(row.shipment_id));
       }
     }
 
     let shipmentCost = 0;
     if (shipmentIds.size > 0) {
       const shipmentCostResult = await query(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE shipment_id = ANY($1::int[]) AND organization_id = $2",
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE shipment_id = ANY($1::uuid[]) AND organization_id = $2",
         [Array.from(shipmentIds), organizationId],
       );
       shipmentCost = toNumber(shipmentCostResult.rows[0].total);
@@ -103,7 +103,7 @@ export class FinanceService {
     };
   }
 
-  async getReferenceData(organizationId: number): Promise<unknown> {
+  async getReferenceData(organizationId: string): Promise<unknown> {
     const [contractsResult, lotsResult, shipmentsResult] = await Promise.all([
       query(
         `

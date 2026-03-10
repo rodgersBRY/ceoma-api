@@ -19,7 +19,7 @@ import {
 import { notificationsService } from "../notifications/notifications.service.js";
 
 export class ShipmentsService {
-  async createShipment(input: ShipmentCreateInput, organizationId: number): Promise<unknown> {
+  async createShipment(input: ShipmentCreateInput, organizationId: string): Promise<unknown> {
     const created = await withTransaction(async (client) => {
       const contractResult = await client.query(
         "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2 FOR UPDATE",
@@ -53,7 +53,7 @@ export class ShipmentsService {
       const allocationResult = await client.query(
         `
         SELECT * FROM allocations
-        WHERE id = ANY($1::int[]) AND organization_id = $2
+        WHERE id = ANY($1::uuid[]) AND organization_id = $2
         FOR UPDATE;
         `,
         [uniqueAllocationIds, organizationId],
@@ -64,7 +64,7 @@ export class ShipmentsService {
 
       let shipmentKg = 0;
       for (const allocation of allocationResult.rows) {
-        if (Number(allocation.contract_id) !== input.contract_id) {
+        if (String(allocation.contract_id) !== input.contract_id) {
           throw new ApiError(
             409,
             `Allocation ${allocation.id} belongs to contract ${allocation.contract_id}, not ${input.contract_id}`,
@@ -85,7 +85,7 @@ export class ShipmentsService {
         `
         UPDATE allocations
         SET status = 'shipped', shipment_id = $1
-        WHERE id = ANY($2::int[]) AND organization_id = $3;
+        WHERE id = ANY($2::uuid[]) AND organization_id = $3;
         `,
         [createdShipment.id, uniqueAllocationIds, organizationId],
       );
@@ -112,15 +112,15 @@ export class ShipmentsService {
           l.grade_id
         FROM allocations a
         JOIN lots l ON l.id = a.lot_id
-        WHERE a.id = ANY($1::int[]) AND a.organization_id = $2
+        WHERE a.id = ANY($1::uuid[]) AND a.organization_id = $2
         ORDER BY a.id;
         `,
         [uniqueAllocationIds, organizationId],
       );
 
-      const touchedLots = new Set<number>();
+      const touchedLots = new Set<string>();
       for (const row of lotsForSnapshotResult.rows) {
-        const lotId = Number(row.lot_id);
+        const lotId = String(row.lot_id);
         if (!touchedLots.has(lotId)) {
           touchedLots.add(lotId);
           await refreshLotStatus(client, lotId, organizationId);
@@ -178,9 +178,9 @@ export class ShipmentsService {
   }
 
   async updateStatus(
-    shipmentId: number,
+    shipmentId: string,
     input: ShipmentStatusInput,
-    organizationId: number,
+    organizationId: string,
   ): Promise<unknown> {
     const updated = await withTransaction(async (client) => {
       const shipmentResult = await client.query(
@@ -235,7 +235,7 @@ export class ShipmentsService {
     return updated.shipment;
   }
 
-  async generateDocuments(shipmentId: number, input: DocsGenerateInput, organizationId: number): Promise<unknown[]> {
+  async generateDocuments(shipmentId: string, input: DocsGenerateInput, organizationId: string): Promise<unknown[]> {
     const generated = await withTransaction(async (client) => {
       const shipmentResult = await client.query(
         "SELECT * FROM shipments WHERE id = $1 AND organization_id = $2",
@@ -365,7 +365,7 @@ export class ShipmentsService {
     return generated.documents;
   }
 
-  async listDocuments(shipmentId: number, listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
+  async listDocuments(shipmentId: string, listQuery: ListQueryParams, organizationId: string): Promise<unknown> {
     const whereClauses = ["shipment_id = $1", "organization_id = $2"];
     const values: unknown[] = [shipmentId, organizationId];
 
@@ -393,7 +393,7 @@ export class ShipmentsService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async getReferenceData(organizationId: number): Promise<unknown> {
+  async getReferenceData(organizationId: string): Promise<unknown> {
     const [contractsResult, allocationsResult, shipmentsResult] = await Promise.all([
       query(
         `

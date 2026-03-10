@@ -14,7 +14,7 @@ import {
 } from "./procurement.validation.js";
 
 export class ProcurementService {
-  async createAuctionLot(input: AuctionLotInput, organizationId: number): Promise<unknown> {
+  async createAuctionLot(input: AuctionLotInput, organizationId: string): Promise<unknown> {
     return withTransaction(async (client) => {
       const supplierResult = await client.query(
         "SELECT supplier_type FROM suppliers WHERE id = $1 AND organization_id = $2",
@@ -81,7 +81,7 @@ export class ProcurementService {
     });
   }
 
-  async createDirectAgreement(input: DirectAgreementInput, organizationId: number): Promise<unknown> {
+  async createDirectAgreement(input: DirectAgreementInput, organizationId: string): Promise<unknown> {
     return withTransaction(async (client) => {
       const supplierResult = await client.query(
         "SELECT supplier_type FROM suppliers WHERE id = $1 AND organization_id = $2",
@@ -119,7 +119,7 @@ export class ProcurementService {
     });
   }
 
-  async createDirectDelivery(input: DirectDeliveryInput, organizationId: number): Promise<unknown> {
+  async createDirectDelivery(input: DirectDeliveryInput, organizationId: string): Promise<unknown> {
     return withTransaction(async (client) => {
       const agreementResult = await client.query(
         "SELECT * FROM direct_agreements WHERE id = $1 AND organization_id = $2",
@@ -183,7 +183,7 @@ export class ProcurementService {
     });
   }
 
-  async listDirectAgreements(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
+  async listDirectAgreements(listQuery: ListQueryParams, organizationId: string): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const supplierId = toUuidFilter(listQuery.filters, "supplier_id");
@@ -230,7 +230,7 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async listAuctionLots(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
+  async listAuctionLots(listQuery: ListQueryParams, organizationId: string): Promise<unknown> {
     const whereClauses: string[] = ["l.source = 'auction'"];
     const values: unknown[] = [];
     const marketingAgentId = toUuidFilter(listQuery.filters, "marketing_agent_id");
@@ -313,7 +313,7 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async listDirectDeliveries(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
+  async listDirectDeliveries(listQuery: ListQueryParams, organizationId: string): Promise<unknown> {
     const whereClauses: string[] = ["l.source = 'direct'"];
     const values: unknown[] = [];
     const supplierId = toUuidFilter(listQuery.filters, "supplier_id");
@@ -409,7 +409,7 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async getReferenceData(organizationId: number): Promise<unknown> {
+  async getReferenceData(organizationId: string): Promise<unknown> {
     const [suppliersResult, marketingAgentsResult, warehousesResult, gradesResult, bagTypesResult, agreementsResult] =
       await Promise.all([
         query(

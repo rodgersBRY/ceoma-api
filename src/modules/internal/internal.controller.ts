@@ -12,14 +12,13 @@ import {
   updateTrialSchema,
 } from "./internal.validation.js";
 
-function parseOrgId(rawValue: string | string[] | undefined): number {
+function parseOrgId(rawValue: string | string[] | undefined): string {
   const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new ApiError(400, "orgId must be a positive integer");
+  if (!value || !/^[0-9a-f-]{36}$/i.test(value)) {
+    throw new ApiError(400, "orgId must be a valid UUID");
   }
 
-  return parsed;
+  return value;
 }
 
 export class InternalController {

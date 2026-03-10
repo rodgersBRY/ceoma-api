@@ -143,7 +143,7 @@ export class AuthService {
         }
 
         let slug = baseSlug;
-        let orgResult = await client.query<{ id: number }>(
+        let orgResult = await client.query<{ id: string }>(
           `
           INSERT INTO organizations (name, slug)
           VALUES ($1, $2)
@@ -157,7 +157,7 @@ export class AuthService {
         while (orgResult.rowCount === 0 && attempts < 5) {
           attempts += 1;
           slug = `${baseSlug}-${Math.floor(Math.random() * 10000)}`;
-          orgResult = await client.query<{ id: number }>(
+          orgResult = await client.query<{ id: string }>(
             `
             INSERT INTO organizations (name, slug)
             VALUES ($1, $2)

@@ -16,7 +16,7 @@ import { notificationsService } from "../notifications/notifications.service.js"
 import { AllocationInput, ContractInput } from "./contracts.validation.js";
 
 export class ContractsService {
-  async createContract(input: ContractInput, organizationId: number): Promise<unknown> {
+  async createContract(input: ContractInput, organizationId: string): Promise<unknown> {
     const created = await withTransaction(async (client) => {
       await ensureReference(client, "buyers", input.buyer_id, "Buyer", organizationId);
       if (input.grade_id) {
@@ -70,7 +70,7 @@ export class ContractsService {
     return created.contract;
   }
 
-  async allocateLot(contractId: number, input: AllocationInput, organizationId: number): Promise<unknown> {
+  async allocateLot(contractId: string, input: AllocationInput, organizationId: string): Promise<unknown> {
     const allocated = await withTransaction(async (client) => {
       const contractResult = await client.query(
         "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2 FOR UPDATE",
@@ -139,7 +139,7 @@ export class ContractsService {
     return allocated.allocation;
   }
 
-  async getDashboard(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
+  async getDashboard(listQuery: ListQueryParams, organizationId: string): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const buyerId = toUuidFilter(listQuery.filters, "buyer_id");
@@ -229,7 +229,7 @@ export class ContractsService {
     };
   }
 
-  async getReferenceData(organizationId: number): Promise<unknown> {
+  async getReferenceData(organizationId: string): Promise<unknown> {
     const [buyersResult, gradesResult, contractsResult, lotsResult] = await Promise.all([
       query(
         `

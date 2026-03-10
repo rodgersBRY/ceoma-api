@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const costEntrySchema = z.object({
-  lot_id: z.number().int().positive().optional(),
-  shipment_id: z.number().int().positive().optional(),
+  lot_id: z.string().uuid().optional(),
+  shipment_id: z.string().uuid().optional(),
   category: z.string().min(1),
   amount: z.number().positive(),
   currency: z.string().default("USD"),

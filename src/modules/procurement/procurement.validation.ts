@@ -2,10 +2,10 @@ import { z } from "zod";
 
 export const auctionLotSchema = z.object({
   lot_number: z.string().min(1),
-  marketing_agent_id: z.number().int().positive(),
-  grade_id: z.number().int().positive(),
-  warehouse_id: z.number().int().positive(),
-  bag_type_id: z.number().int().positive(),
+  marketing_agent_id: z.string().uuid(),
+  grade_id: z.string().uuid(),
+  warehouse_id: z.string().uuid(),
+  bag_type_id: z.string().uuid(),
   crop_year: z.string().min(1),
   bags: z.number().int().positive(),
   weight_total_kg: z.number().positive(),
@@ -15,7 +15,7 @@ export const auctionLotSchema = z.object({
 });
 
 export const directAgreementSchema = z.object({
-  supplier_id: z.number().int().positive(),
+  supplier_id: z.string().uuid(),
   agreement_reference: z.string().min(1),
   agreed_price_per_kg: z.number().positive(),
   currency: z.string().default("USD"),
@@ -23,12 +23,12 @@ export const directAgreementSchema = z.object({
 });
 
 export const directDeliverySchema = z.object({
-  agreement_id: z.number().int().positive(),
+  agreement_id: z.string().uuid(),
   internal_lot_id: z.string().min(1),
   delivery_reference: z.string().min(1),
-  grade_id: z.number().int().positive(),
-  warehouse_id: z.number().int().positive(),
-  bag_type_id: z.number().int().positive(),
+  grade_id: z.string().uuid(),
+  warehouse_id: z.string().uuid(),
+  bag_type_id: z.string().uuid(),
   bags: z.number().int().positive(),
   weight_total_kg: z.number().positive(),
   moisture_percent: z.number().nonnegative(),

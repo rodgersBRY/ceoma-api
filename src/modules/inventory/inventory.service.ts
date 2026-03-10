@@ -11,7 +11,7 @@ import { notificationsService } from "../notifications/notifications.service.js"
 import { StockAdjustmentInput } from "./inventory.validation.js";
 
 export class InventoryService {
-  async listLots(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
+  async listLots(listQuery: ListQueryParams, organizationId: string): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const gradeId = toUuidFilter(listQuery.filters, "grade_id");
@@ -94,7 +94,7 @@ export class InventoryService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async adjustStock(input: StockAdjustmentInput, organizationId: number): Promise<unknown> {
+  async adjustStock(input: StockAdjustmentInput, organizationId: string): Promise<unknown> {
     const adjustment = await withTransaction(async (client) => {
       const lotResult = await client.query(
         "SELECT * FROM lots WHERE id = $1 AND organization_id = $2 FOR UPDATE",
@@ -146,7 +146,7 @@ export class InventoryService {
     return adjustment.adjustment;
   }
 
-  async getDashboard(organizationId: number): Promise<unknown> {
+  async getDashboard(organizationId: string): Promise<unknown> {
     const lotsResult = await query(
       "SELECT grade_id, source, weight_total_kg, weight_available_kg FROM lots WHERE organization_id = $1",
       [organizationId],
@@ -160,9 +160,9 @@ export class InventoryService {
       [organizationId],
     );
 
-    const gradeMap = new Map<number, string>();
+    const gradeMap = new Map<string, string>();
     for (const row of gradesResult.rows) {
-      gradeMap.set(Number(row.id), String(row.code));
+      gradeMap.set(String(row.id), String(row.code));
     }
 
     let totalPhysical = 0;
@@ -186,7 +186,7 @@ export class InventoryService {
       bySource[source].total_kg += total;
       bySource[source].available_kg += free;
 
-      const grade = gradeMap.get(Number(row.grade_id)) ?? "unknown";
+      const grade = gradeMap.get(String(row.grade_id)) ?? "unknown";
       if (!byGrade[grade]) {
         byGrade[grade] = { total_kg: 0, available_kg: 0 };
       }
@@ -203,7 +203,7 @@ export class InventoryService {
     };
   }
 
-  async getReferenceData(organizationId: number): Promise<unknown> {
+  async getReferenceData(organizationId: string): Promise<unknown> {
     const [gradesResult, warehousesResult, suppliersResult, lotsResult] = await Promise.all([
       query(
         `

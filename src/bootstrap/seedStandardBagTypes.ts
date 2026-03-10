@@ -3,10 +3,10 @@ import { withTransaction } from "../db/pool.js";
 import { bootstrapBagTypes } from "./defaultBagTypes.js";
 
 type BagTypeRow = {
-  id: number;
+  id: string;
   name: string;
   weight_kg: string | number;
-  organization_id?: number;
+  organization_id?: string;
 };
 
 function normalizeName(name: string): string {
@@ -19,7 +19,7 @@ function sameWeight(a: number, b: number): boolean {
 
 export async function seedStandardBagTypesIfMissing(): Promise<void> {
   await withTransaction(async (client) => {
-    const orgResult = await client.query<{ id: number }>(
+    const orgResult = await client.query<{ id: string }>(
       "SELECT id FROM organizations",
     );
     const organizationIds = orgResult.rows.map((row) => row.id);
@@ -28,7 +28,7 @@ export async function seedStandardBagTypesIfMissing(): Promise<void> {
       return;
     }
 
-    const inserted: Array<{ name: string; weight_kg: number; organization_id: number }> = [];
+    const inserted: Array<{ name: string; weight_kg: number; organization_id: string }> = [];
     for (const organizationId of organizationIds) {
       const existingResult = await client.query<BagTypeRow>(
         "SELECT id, name, weight_kg FROM bag_types WHERE organization_id = $1",
@@ -74,7 +74,7 @@ export async function seedStandardBagTypesIfMissing(): Promise<void> {
   });
 }
 
-export async function seedStandardBagTypesForOrg(organizationId: number): Promise<void> {
+export async function seedStandardBagTypesForOrg(organizationId: string): Promise<void> {
   await withTransaction(async (client) => {
     const existingResult = await client.query<BagTypeRow>(
       "SELECT id, name, weight_kg FROM bag_types WHERE organization_id = $1",
@@ -82,7 +82,7 @@ export async function seedStandardBagTypesForOrg(organizationId: number): Promis
     );
     const existing = existingResult.rows;
 
-    const inserted: Array<{ name: string; weight_kg: number; organization_id: number }> = [];
+    const inserted: Array<{ name: string; weight_kg: number; organization_id: string }> = [];
 
     for (const seed of bootstrapBagTypes) {
       const found = existing.some((row) => {

@@ -103,6 +103,10 @@ export function verifyAccessToken(token: string): AccessTokenClaims {
       throw new ApiError(401, "Invalid access token claims");
     }
 
+    if (!isUuid(decoded.sub)) {
+      throw new ApiError(401, "Invalid access token subject");
+    }
+
     if (typeof decoded.organizationId !== "string" || !isUuid(decoded.organizationId)) {
       throw new ApiError(401, "Invalid access token organization");
     }
@@ -133,6 +137,10 @@ export function verifyRefreshToken(token: string): RefreshTokenClaims {
       throw new ApiError(401, "Invalid refresh token claims");
     }
     
+    if (!isUuid(decoded.sub)) {
+      throw new ApiError(401, "Invalid refresh token subject");
+    }
+
     if (typeof decoded.organizationId !== "string" || !isUuid(decoded.organizationId)) {
       throw new ApiError(401, "Invalid refresh token organization");
     }
