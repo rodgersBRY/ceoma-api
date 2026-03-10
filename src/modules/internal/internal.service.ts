@@ -343,7 +343,8 @@ export class InternalService {
           $1,
           $2,
           $3,
-          CASE WHEN $4::int > 0 THEN NOW() + ($4::int * INTERVAL '1 day') ELSE NULL END
+          $4,
+          CASE WHEN $5::int > 0 THEN NOW() + ($5::int * INTERVAL '1 day') ELSE NULL END
         )
         ON CONFLICT (organization_id) DO NOTHING
         `,

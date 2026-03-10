@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { logger } from "../common/logger.js";
 import { withTransaction } from "../db/pool.js";
 import { bootstrapBagTypes } from "./defaultBagTypes.js";
@@ -51,11 +53,11 @@ export async function seedStandardBagTypesIfMissing(): Promise<void> {
 
         const insertResult = await client.query<BagTypeRow>(
           `
-          INSERT INTO bag_types (name, weight_kg, organization_id)
-          VALUES ($1, $2, $3)
+          INSERT INTO bag_types (id, name, weight_kg, organization_id)
+          VALUES ($1, $2, $3, $4)
           RETURNING id, name, weight_kg
           `,
-          [seed.name, seed.weightKg, organizationId],
+          [crypto.randomUUID(), seed.name, seed.weightKg, organizationId],
         );
 
         existing.push(insertResult.rows[0]);
@@ -99,11 +101,11 @@ export async function seedStandardBagTypesForOrg(organizationId: string): Promis
 
       const insertResult = await client.query<BagTypeRow>(
         `
-        INSERT INTO bag_types (name, weight_kg, organization_id)
-        VALUES ($1, $2, $3)
+        INSERT INTO bag_types (id, name, weight_kg, organization_id)
+        VALUES ($1, $2, $3, $4)
         RETURNING id, name, weight_kg
         `,
-        [seed.name, seed.weightKg, organizationId],
+        [crypto.randomUUID(), seed.name, seed.weightKg, organizationId],
       );
 
       existing.push(insertResult.rows[0]);
