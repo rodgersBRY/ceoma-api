@@ -4,7 +4,10 @@ import { authenticate, authorize } from "../common/middleware/auth.js";
 import { idempotencyMiddleware } from "../common/middleware/idempotency.js";
 import { authRouter } from "../modules/auth/auth.routes.js";
 import { contractsRouter } from "../modules/contracts/contracts.routes.js";
-import { costsRouter, profitabilityRouter } from "../modules/finance/finance.routes.js";
+import {
+  costsRouter,
+  profitabilityRouter,
+} from "../modules/finance/finance.routes.js";
 import { inventoryRouter } from "../modules/inventory/inventory.routes.js";
 import { masterRouter } from "../modules/master/master.routes.js";
 import { procurementRouter } from "../modules/procurement/procurement.routes.js";
@@ -21,6 +24,7 @@ export function registerRoutes(app: Express): void {
     idempotencyMiddleware,
     masterRouter,
   );
+
   app.use(
     "/api/v1/procurement",
     authenticate,
@@ -28,6 +32,7 @@ export function registerRoutes(app: Express): void {
     idempotencyMiddleware,
     procurementRouter,
   );
+
   app.use(
     "/api/v1/inventory",
     authenticate,
@@ -35,6 +40,7 @@ export function registerRoutes(app: Express): void {
     idempotencyMiddleware,
     inventoryRouter,
   );
+
   app.use(
     "/api/v1/contracts",
     authenticate,
@@ -42,6 +48,7 @@ export function registerRoutes(app: Express): void {
     idempotencyMiddleware,
     contractsRouter,
   );
+
   app.use(
     "/api/v1/shipments",
     authenticate,
@@ -49,6 +56,7 @@ export function registerRoutes(app: Express): void {
     idempotencyMiddleware,
     shipmentsRouter,
   );
+
   app.use(
     "/api/v1/costs",
     authenticate,
@@ -56,6 +64,7 @@ export function registerRoutes(app: Express): void {
     idempotencyMiddleware,
     costsRouter,
   );
+
   app.use(
     "/api/v1/profitability",
     authenticate,
@@ -63,6 +72,7 @@ export function registerRoutes(app: Express): void {
     idempotencyMiddleware,
     profitabilityRouter,
   );
+
   app.use(
     "/api/v1/traceability",
     authenticate,

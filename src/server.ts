@@ -18,7 +18,9 @@ async function bootstrap(): Promise<void> {
   await verifyDatabaseConnection();
 
   await seedInitialUsersIfEmpty();
+
   await seedStandardBagTypesIfMissing();
+
   registerNotificationCrons();
 
   const server = app.listen(env.port, () => {
@@ -27,9 +29,12 @@ async function bootstrap(): Promise<void> {
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`Received ${signal}. Shutting down gracefully.`);
+
     server.close(async () => {
       await pool.end();
+
       logger.info("HTTP server and database pool closed.");
+
       process.exit(0);
     });
   };
@@ -37,7 +42,7 @@ async function bootstrap(): Promise<void> {
   process.on("SIGINT", () => {
     void shutdown("SIGINT");
   });
-  
+
   process.on("SIGTERM", () => {
     void shutdown("SIGTERM");
   });
@@ -45,5 +50,6 @@ async function bootstrap(): Promise<void> {
 
 void bootstrap().catch((error) => {
   logger.error("Server bootstrap failed", { error });
+  
   process.exit(1);
 });

@@ -33,21 +33,26 @@ export function createApp(): Express {
       origin: (origin, callback) => {
         if (!origin) {
           callback(null, true);
+
           return;
         }
+
         if (
           env.corsAllowedOrigins.length === 0 ||
           env.corsAllowedOrigins.includes(origin)
         ) {
           callback(null, true);
+
           return;
         }
+
         callback(null, false);
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),
   );
+
   app
     .use(cookieParser())
     .use(express.json({ limit: env.requestBodyLimit }))
@@ -55,10 +60,6 @@ export function createApp(): Express {
     .use(sanitizeInput)
     .use(apiRateLimiter)
     .use(csrfProtection);
-
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "ceoms-api" });
-  });
 
   app.get("/api/v1/health", (_req, res) => {
     res.json({ ok: true, service: "ceoms-api", version: "v1" });
