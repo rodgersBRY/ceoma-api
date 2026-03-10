@@ -229,21 +229,6 @@ Default bag types:
 
 This is idempotent and safe to run on every startup (no duplicate inserts for these standards).
 
-## Web application (Next.js)
-
-The repository includes a separate frontend app in `../web`.
-
-Run it in a second terminal:
-
-```bash
-cd ../web
-cp .env.example .env
-npm install
-npm run dev
-```
-
-Frontend runs at `http://localhost:3000` and securely proxies requests to the API.
-
 ## Auth and CSRF Usage
 
 1. Bootstrap the first user:
