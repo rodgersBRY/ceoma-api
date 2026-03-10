@@ -4,18 +4,18 @@ import { query, withTransaction } from "../../db/pool.js";
 import { CostEntryInput } from "./finance.validation.js";
 
 export class FinanceService {
-  async createCostEntry(input: CostEntryInput): Promise<unknown> {
+  async createCostEntry(input: CostEntryInput, organizationId: number): Promise<unknown> {
     return withTransaction(async (client) => {
       if (input.lot_id) {
-        await ensureReference(client, "lots", input.lot_id, "Lot");
+        await ensureReference(client, "lots", input.lot_id, "Lot", organizationId);
       }
       if (input.shipment_id) {
-        await ensureReference(client, "shipments", input.shipment_id, "Shipment");
+        await ensureReference(client, "shipments", input.shipment_id, "Shipment", organizationId);
       }
       const result = await client.query(
         `
-        INSERT INTO cost_entries (lot_id, shipment_id, category, amount, currency, notes)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO cost_entries (lot_id, shipment_id, category, amount, currency, notes, organization_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *;
         `,
         [
@@ -25,14 +25,18 @@ export class FinanceService {
           input.amount,
           input.currency,
           input.notes ?? null,
+          organizationId,
         ],
       );
       return result.rows[0];
     });
   }
 
-  async getContractProfitability(contractId: number): Promise<unknown> {
-    const contractResult = await query("SELECT * FROM contracts WHERE id = $1", [contractId]);
+  async getContractProfitability(contractId: number, organizationId: number): Promise<unknown> {
+    const contractResult = await query(
+      "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2",
+      [contractId, organizationId],
+    );
     if (contractResult.rowCount === 0) {
       throw new ApiError(404, `Contract ${contractId} not found`);
     }
@@ -49,9 +53,9 @@ export class FinanceService {
         l.additional_cost_total
       FROM allocations a
       JOIN lots l ON l.id = a.lot_id
-      WHERE a.contract_id = $1 AND a.status = 'shipped';
+      WHERE a.contract_id = $1 AND a.status = 'shipped' AND a.organization_id = $2;
       `,
-      [contractId],
+      [contractId, organizationId],
     );
 
     let shippedKg = 0;
@@ -75,8 +79,8 @@ export class FinanceService {
     let shipmentCost = 0;
     if (shipmentIds.size > 0) {
       const shipmentCostResult = await query(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE shipment_id = ANY($1::int[])",
-        [Array.from(shipmentIds)],
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE shipment_id = ANY($1::int[]) AND organization_id = $2",
+        [Array.from(shipmentIds), organizationId],
       );
       shipmentCost = toNumber(shipmentCostResult.rows[0].total);
     }
@@ -99,31 +103,37 @@ export class FinanceService {
     };
   }
 
-  async getReferenceData(): Promise<unknown> {
+  async getReferenceData(organizationId: number): Promise<unknown> {
     const [contractsResult, lotsResult, shipmentsResult] = await Promise.all([
       query(
         `
         SELECT id, contract_number, status
         FROM contracts
+        WHERE organization_id = $1
         ORDER BY created_at DESC, id DESC
         LIMIT 500
         `,
+        [organizationId],
       ),
       query(
         `
         SELECT id, lot_code, source, status
         FROM lots
+        WHERE organization_id = $1
         ORDER BY created_at DESC, id DESC
         LIMIT 1000
         `,
+        [organizationId],
       ),
       query(
         `
         SELECT id, shipment_number, status
         FROM shipments
+        WHERE organization_id = $1
         ORDER BY created_at DESC, id DESC
         LIMIT 500
         `,
+        [organizationId],
       ),
     ]);
 

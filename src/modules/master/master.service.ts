@@ -22,19 +22,23 @@ function throwReferenceConflict(error: unknown, entityName: string): never {
   if (pgError.code === "23503") {
     throw new ApiError(409, `${entityName} is in use and cannot be deleted`);
   }
+  
   throw error;
 }
 
 export class MasterService {
   // SUPPLIER SERVICES
-  async createSupplier(input: SupplierInput): Promise<unknown> {
+  async createSupplier(
+    input: SupplierInput,
+    organizationId: number,
+  ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO suppliers (name, supplier_type, country)
-      VALUES ($1, $2, $3)
+      INSERT INTO suppliers (name, supplier_type, country, organization_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [input.name, input.type, input.country ?? null],
+      [input.name, input.type, input.country ?? null, organizationId],
     );
 
     return result.rows[0];
@@ -43,12 +47,16 @@ export class MasterService {
   async updateSupplier(
     id: number,
     input: Partial<SupplierInput>,
+    organizationId: number,
   ): Promise<unknown> {
     const result = await query(
       `
-      UPDATE suppliers SET name = $1, supplier_type = $2, country = $3 WHERE id = $4 RETURNING *;
+      UPDATE suppliers
+      SET name = $1, supplier_type = $2, country = $3
+      WHERE id = $4 AND organization_id = $5
+      RETURNING *;
       `,
-      [input.name, input.type, input.country ?? null, id],
+      [input.name, input.type, input.country ?? null, id, organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -57,10 +65,10 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteSupplier(id: number): Promise<unknown> {
+  async deleteSupplier(id: number, organizationId: number): Promise<unknown> {
     const result = await query(
-      `DELETE FROM suppliers WHERE id = $1 RETURNING *`,
-      [id],
+      `DELETE FROM suppliers WHERE id = $1 AND organization_id = $2 RETURNING *`,
+      [id, organizationId],
     ).catch((error: unknown) => throwReferenceConflict(error, "Supplier"));
 
     if (result.rowCount === 0) {
@@ -69,9 +77,15 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async listSuppliers(listQuery: ListQueryParams): Promise<unknown> {
+  async listSuppliers(
+    listQuery: ListQueryParams,
+    organizationId: number,
+  ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
+
+    values.push(organizationId);
+    whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -110,24 +124,31 @@ export class MasterService {
   }
 
   // BUYER SERVICES
-  async createBuyer(input: BuyerInput): Promise<unknown> {
+  async createBuyer(
+    input: BuyerInput,
+    organizationId: number,
+  ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO buyers (name, country)
-      VALUES ($1, $2)
+      INSERT INTO buyers (name, country, organization_id)
+      VALUES ($1, $2, $3)
       RETURNING *;
       `,
-      [input.name, input.country ?? null],
+      [input.name, input.country ?? null, organizationId],
     );
     return result.rows[0];
   }
 
-  async updateBuyer(id: number, input: Partial<BuyerInput>): Promise<unknown> {
+  async updateBuyer(
+    id: number,
+    input: Partial<BuyerInput>,
+    organizationId: number,
+  ): Promise<unknown> {
     const result = await query(
       `
-      UPDATE buyers SET name = $1, country = $2 WHERE id = $3 RETURNING *;
+      UPDATE buyers SET name = $1, country = $2 WHERE id = $3 AND organization_id = $4 RETURNING *;
       `,
-      [input.name, input.country ?? null, id],
+      [input.name, input.country ?? null, id, organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -136,10 +157,11 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteBuyer(id: number): Promise<unknown> {
-    const result = await query(`DELETE FROM buyers WHERE id = $1 RETURNING *`, [
-      id,
-    ]).catch((error: unknown) => throwReferenceConflict(error, "Buyer"));
+  async deleteBuyer(id: number, organizationId: number): Promise<unknown> {
+    const result = await query(
+      `DELETE FROM buyers WHERE id = $1 AND organization_id = $2 RETURNING *`,
+      [id, organizationId],
+    ).catch((error: unknown) => throwReferenceConflict(error, "Buyer"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Buyer ${id} not found`);
@@ -147,9 +169,15 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async listBuyers(listQuery: ListQueryParams): Promise<unknown> {
+  async listBuyers(
+    listQuery: ListQueryParams,
+    organizationId: number,
+  ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
+
+    values.push(organizationId);
+    whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -184,14 +212,17 @@ export class MasterService {
   }
 
   // WAREHOUSE SERVICES
-  async createWarehouse(input: WarehouseInput): Promise<unknown> {
+  async createWarehouse(
+    input: WarehouseInput,
+    organizationId: number,
+  ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO warehouses (name, location)
-      VALUES ($1, $2)
+      INSERT INTO warehouses (name, location, organization_id)
+      VALUES ($1, $2, $3)
       RETURNING *;
       `,
-      [input.name, input.location ?? null],
+      [input.name, input.location ?? null, organizationId],
     );
     return result.rows[0];
   }
@@ -199,12 +230,13 @@ export class MasterService {
   async updateWarehouse(
     id: number,
     input: Partial<WarehouseInput>,
+    organizationId: number,
   ): Promise<unknown> {
     const result = await query(
       `
-      UPDATE warehouses SET name = $1, location = $2 WHERE id = $3 RETURNING *;
+      UPDATE warehouses SET name = $1, location = $2 WHERE id = $3 AND organization_id = $4 RETURNING *;
       `,
-      [input.name, input.location ?? null, id],
+      [input.name, input.location ?? null, id, organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -213,10 +245,10 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteWarehouse(id: number): Promise<unknown> {
+  async deleteWarehouse(id: number, organizationId: number): Promise<unknown> {
     const result = await query(
-      `DELETE FROM warehouses WHERE id = $1 RETURNING *`,
-      [id],
+      `DELETE FROM warehouses WHERE id = $1 AND organization_id = $2 RETURNING *`,
+      [id, organizationId],
     ).catch((error: unknown) => throwReferenceConflict(error, "Warehouse"));
 
     if (result.rowCount === 0) {
@@ -225,9 +257,15 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async listWarehouses(listQuery: ListQueryParams): Promise<unknown> {
+  async listWarehouses(
+    listQuery: ListQueryParams,
+    organizationId: number,
+  ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
+
+    values.push(organizationId);
+    whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -262,24 +300,31 @@ export class MasterService {
   }
 
   // GRADE SERVICES
-  async createGrade(input: GradeInput): Promise<unknown> {
+  async createGrade(
+    input: GradeInput,
+    organizationId: number,
+  ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO grades (code, description)
-      VALUES ($1, $2)
+      INSERT INTO grades (code, description, organization_id)
+      VALUES ($1, $2, $3)
       RETURNING *;
       `,
-      [input.code, input.description ?? null],
+      [input.code, input.description ?? null, organizationId],
     );
     return result.rows[0];
   }
 
-  async updateGrade(id: number, input: Partial<GradeInput>): Promise<unknown> {
+  async updateGrade(
+    id: number,
+    input: Partial<GradeInput>,
+    organizationId: number,
+  ): Promise<unknown> {
     const result = await query(
       `
-      UPDATE grades SET code = $1, description = $2 WHERE id = $3 RETURNING *;
+      UPDATE grades SET code = $1, description = $2 WHERE id = $3 AND organization_id = $4 RETURNING *;
       `,
-      [input.code, input.description ?? null, id],
+      [input.code, input.description ?? null, id, organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -288,10 +333,11 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteGrade(id: number): Promise<unknown> {
-    const result = await query(`DELETE FROM grades WHERE id = $1 RETURNING *`, [
-      id,
-    ]).catch((error: unknown) => throwReferenceConflict(error, "Grade"));
+  async deleteGrade(id: number, organizationId: number): Promise<unknown> {
+    const result = await query(
+      `DELETE FROM grades WHERE id = $1 AND organization_id = $2 RETURNING *`,
+      [id, organizationId],
+    ).catch((error: unknown) => throwReferenceConflict(error, "Grade"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Grade ${id} not found`);
@@ -299,9 +345,15 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async listGrades(listQuery: ListQueryParams): Promise<unknown> {
+  async listGrades(
+    listQuery: ListQueryParams,
+    organizationId: number,
+  ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
+
+    values.push(organizationId);
+    whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -338,24 +390,31 @@ export class MasterService {
   }
 
   // BAG TYPE SERVICES
-  async createBagType(input: BagTypeInput): Promise<unknown> {
+  async createBagType(
+    input: BagTypeInput,
+    organizationId: number,
+  ): Promise<unknown> {
     const result = await query(
       `
-      INSERT INTO bag_types (name, weight_kg)
-      VALUES ($1, $2)
+      INSERT INTO bag_types (name, weight_kg, organization_id)
+      VALUES ($1, $2, $3)
       RETURNING *;
       `,
-      [input.name, input.weight_kg],
+      [input.name, input.weight_kg, organizationId],
     );
     return result.rows[0];
   }
 
-  async updateBagType(id: number, input: Partial<BagTypeInput>): Promise<unknown> {
+  async updateBagType(
+    id: number,
+    input: Partial<BagTypeInput>,
+    organizationId: number,
+  ): Promise<unknown> {
     const result = await query(
       `
-      UPDATE bag_types SET name = $1, weight_kg = $2 WHERE id = $3 RETURNING *;
+      UPDATE bag_types SET name = $1, weight_kg = $2 WHERE id = $3 AND organization_id = $4 RETURNING *;
       `,
-      [input.name, input.weight_kg ?? null, id],
+      [input.name, input.weight_kg ?? null, id, organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -364,10 +423,11 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteBagType(id: number): Promise<unknown> {
-    const result = await query(`DELETE FROM bag_types WHERE id = $1 RETURNING *`, [
-      id,
-    ]).catch((error: unknown) => throwReferenceConflict(error, "Bag type"));
+  async deleteBagType(id: number, organizationId: number): Promise<unknown> {
+    const result = await query(
+      `DELETE FROM bag_types WHERE id = $1 AND organization_id = $2 RETURNING *`,
+      [id, organizationId],
+    ).catch((error: unknown) => throwReferenceConflict(error, "Bag type"));
 
     if (result.rowCount === 0) {
       throw new ApiError(404, `Bag type ${id} not found`);
@@ -375,9 +435,15 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async listBagTypes(listQuery: ListQueryParams): Promise<unknown> {
+  async listBagTypes(
+    listQuery: ListQueryParams,
+    organizationId: number,
+  ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
+
+    values.push(organizationId);
+    whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);

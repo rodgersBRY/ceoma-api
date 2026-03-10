@@ -19,11 +19,12 @@ import {
 import { notificationsService } from "../notifications/notifications.service.js";
 
 export class ShipmentsService {
-  async createShipment(input: ShipmentCreateInput): Promise<unknown> {
+  async createShipment(input: ShipmentCreateInput, organizationId: number): Promise<unknown> {
     const created = await withTransaction(async (client) => {
-      const contractResult = await client.query("SELECT * FROM contracts WHERE id = $1 FOR UPDATE", [
-        input.contract_id,
-      ]);
+      const contractResult = await client.query(
+        "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        [input.contract_id, organizationId],
+      );
       if (contractResult.rowCount === 0) {
         throw new ApiError(404, `Contract ${input.contract_id} not found`);
       }
@@ -32,9 +33,9 @@ export class ShipmentsService {
       const shipmentResult = await client.query(
         `
         INSERT INTO shipments (
-          shipment_number, contract_id, status, container_number, seal_number, planned_departure
+          shipment_number, contract_id, status, container_number, seal_number, planned_departure, organization_id
         )
-        VALUES ($1, $2, 'planned', $3, $4, $5::date)
+        VALUES ($1, $2, 'planned', $3, $4, $5::date, $6)
         RETURNING *;
         `,
         [
@@ -43,6 +44,7 @@ export class ShipmentsService {
           input.container_number ?? null,
           input.seal_number ?? null,
           input.planned_departure ?? null,
+          organizationId,
         ],
       );
       const createdShipment = shipmentResult.rows[0];
@@ -51,10 +53,10 @@ export class ShipmentsService {
       const allocationResult = await client.query(
         `
         SELECT * FROM allocations
-        WHERE id = ANY($1::int[])
+        WHERE id = ANY($1::int[]) AND organization_id = $2
         FOR UPDATE;
         `,
-        [uniqueAllocationIds],
+        [uniqueAllocationIds, organizationId],
       );
       if (allocationResult.rowCount !== uniqueAllocationIds.length) {
         throw new ApiError(404, "One or more allocations do not exist");
@@ -83,9 +85,9 @@ export class ShipmentsService {
         `
         UPDATE allocations
         SET status = 'shipped', shipment_id = $1
-        WHERE id = ANY($2::int[]);
+        WHERE id = ANY($2::int[]) AND organization_id = $3;
         `,
-        [createdShipment.id, uniqueAllocationIds],
+        [createdShipment.id, uniqueAllocationIds, organizationId],
       );
 
       const contractStatus = nextContractStatus(
@@ -94,8 +96,8 @@ export class ShipmentsService {
         String(contract.status),
       );
       await client.query(
-        "UPDATE contracts SET shipped_kg = $1, status = $2 WHERE id = $3",
-        [newShipped, contractStatus, input.contract_id],
+        "UPDATE contracts SET shipped_kg = $1, status = $2 WHERE id = $3 AND organization_id = $4",
+        [newShipped, contractStatus, input.contract_id, organizationId],
       );
 
       const lotsForSnapshotResult = await client.query(
@@ -110,10 +112,10 @@ export class ShipmentsService {
           l.grade_id
         FROM allocations a
         JOIN lots l ON l.id = a.lot_id
-        WHERE a.id = ANY($1::int[])
+        WHERE a.id = ANY($1::int[]) AND a.organization_id = $2
         ORDER BY a.id;
         `,
-        [uniqueAllocationIds],
+        [uniqueAllocationIds, organizationId],
       );
 
       const touchedLots = new Set<number>();
@@ -121,7 +123,7 @@ export class ShipmentsService {
         const lotId = Number(row.lot_id);
         if (!touchedLots.has(lotId)) {
           touchedLots.add(lotId);
-          await refreshLotStatus(client, lotId);
+          await refreshLotStatus(client, lotId, organizationId);
         }
       }
 
@@ -142,13 +144,14 @@ export class ShipmentsService {
       };
 
       await client.query(
-        "UPDATE shipments SET traceability_snapshot = $1::jsonb WHERE id = $2",
-        [JSON.stringify(traceabilitySnapshot), createdShipment.id],
+        "UPDATE shipments SET traceability_snapshot = $1::jsonb WHERE id = $2 AND organization_id = $3",
+        [JSON.stringify(traceabilitySnapshot), createdShipment.id, organizationId],
       );
 
-      const finalShipment = await client.query("SELECT * FROM shipments WHERE id = $1", [
-        createdShipment.id,
-      ]);
+      const finalShipment = await client.query(
+        "SELECT * FROM shipments WHERE id = $1 AND organization_id = $2",
+        [createdShipment.id, organizationId],
+      );
       const lotCodes = Array.from(
         new Set(
           lotsForSnapshotResult.rows
@@ -173,11 +176,16 @@ export class ShipmentsService {
     return created.shipment;
   }
 
-  async updateStatus(shipmentId: number, input: ShipmentStatusInput): Promise<unknown> {
+  async updateStatus(
+    shipmentId: number,
+    input: ShipmentStatusInput,
+    organizationId: number,
+  ): Promise<unknown> {
     const updated = await withTransaction(async (client) => {
-      const shipmentResult = await client.query("SELECT * FROM shipments WHERE id = $1 FOR UPDATE", [
-        shipmentId,
-      ]);
+      const shipmentResult = await client.query(
+        "SELECT * FROM shipments WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        [shipmentId, organizationId],
+      );
       if (shipmentResult.rowCount === 0) {
         throw new ApiError(404, `Shipment ${shipmentId} not found`);
       }
@@ -192,16 +200,16 @@ export class ShipmentsService {
         `
         UPDATE shipments
         SET status = $1, actual_departure = COALESCE($2::date, actual_departure)
-        WHERE id = $3
+        WHERE id = $3 AND organization_id = $4
         RETURNING *;
         `,
-        [input.status, input.actual_departure ?? null, shipmentId],
+        [input.status, input.actual_departure ?? null, shipmentId, organizationId],
       );
       const updatedShipment = result.rows[0];
 
       const contractResult = await client.query(
-        "SELECT contract_number FROM contracts WHERE id = $1",
-        [updatedShipment.contract_id],
+        "SELECT contract_number FROM contracts WHERE id = $1 AND organization_id = $2",
+        [updatedShipment.contract_id, organizationId],
       );
 
       return {
@@ -225,26 +233,31 @@ export class ShipmentsService {
     return updated.shipment;
   }
 
-  async generateDocuments(shipmentId: number, input: DocsGenerateInput): Promise<unknown[]> {
+  async generateDocuments(shipmentId: number, input: DocsGenerateInput, organizationId: number): Promise<unknown[]> {
     const generated = await withTransaction(async (client) => {
-      const shipmentResult = await client.query("SELECT * FROM shipments WHERE id = $1", [
-        shipmentId,
-      ]);
+      const shipmentResult = await client.query(
+        "SELECT * FROM shipments WHERE id = $1 AND organization_id = $2",
+        [shipmentId, organizationId],
+      );
       if (shipmentResult.rowCount === 0) {
         throw new ApiError(404, `Shipment ${shipmentId} not found`);
       }
       const shipment = shipmentResult.rows[0];
 
-      const contractResult = await client.query("SELECT * FROM contracts WHERE id = $1", [
-        shipment.contract_id,
-      ]);
+      const contractResult = await client.query(
+        "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2",
+        [shipment.contract_id, organizationId],
+      );
       const contract = contractResult.rows[0];
-      const buyerResult = await client.query("SELECT * FROM buyers WHERE id = $1", [contract.buyer_id]);
+      const buyerResult = await client.query(
+        "SELECT * FROM buyers WHERE id = $1 AND organization_id = $2",
+        [contract.buyer_id, organizationId],
+      );
       const buyer = buyerResult.rows[0];
 
       const allocationResult = await client.query(
-        "SELECT * FROM allocations WHERE shipment_id = $1 ORDER BY id",
-        [shipmentId],
+        "SELECT * FROM allocations WHERE shipment_id = $1 AND organization_id = $2 ORDER BY id",
+        [shipmentId, organizationId],
       );
       if (allocationResult.rowCount === 0) {
         throw new ApiError(409, "No shipped allocations found for this shipment");
@@ -291,9 +304,9 @@ export class ShipmentsService {
               l.additional_cost_total
             FROM allocations a
             JOIN lots l ON l.id = a.lot_id
-            WHERE a.shipment_id = $1;
+            WHERE a.shipment_id = $1 AND a.organization_id = $2;
             `,
-            [shipmentId],
+            [shipmentId, organizationId],
           );
           let totalLotCost = 0;
           for (const row of lotCostResult.rows) {
@@ -308,8 +321,8 @@ export class ShipmentsService {
           }
 
           const shipmentCostResult = await client.query(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE shipment_id = $1",
-            [shipmentId],
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE shipment_id = $1 AND organization_id = $2",
+            [shipmentId, organizationId],
           );
           const shipmentCost = toNumber(shipmentCostResult.rows[0].total);
           payload = {
@@ -322,11 +335,11 @@ export class ShipmentsService {
 
         const insertResult = await client.query(
           `
-          INSERT INTO shipment_documents (shipment_id, document_type, payload)
-          VALUES ($1, $2, $3::jsonb)
+          INSERT INTO shipment_documents (shipment_id, document_type, payload, organization_id)
+          VALUES ($1, $2, $3::jsonb, $4)
           RETURNING *;
           `,
-          [shipmentId, docType, JSON.stringify(payload)],
+          [shipmentId, docType, JSON.stringify(payload), organizationId],
         );
         createdDocs.push(insertResult.rows[0]);
       }
@@ -349,9 +362,9 @@ export class ShipmentsService {
     return generated.documents;
   }
 
-  async listDocuments(shipmentId: number, listQuery: ListQueryParams): Promise<unknown> {
-    const whereClauses = ["shipment_id = $1"];
-    const values: unknown[] = [shipmentId];
+  async listDocuments(shipmentId: number, listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
+    const whereClauses = ["shipment_id = $1", "organization_id = $2"];
+    const values: unknown[] = [shipmentId, organizationId];
 
     if (listQuery.filters.document_type) {
       values.push(listQuery.filters.document_type);
@@ -377,16 +390,17 @@ export class ShipmentsService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async getReferenceData(): Promise<unknown> {
+  async getReferenceData(organizationId: number): Promise<unknown> {
     const [contractsResult, allocationsResult, shipmentsResult] = await Promise.all([
       query(
         `
         SELECT id, contract_number, status, quantity_kg, allocated_kg, shipped_kg
         FROM contracts
-        WHERE status IN ('open', 'partially_fulfilled')
+        WHERE status IN ('open', 'partially_fulfilled') AND organization_id = $1
         ORDER BY created_at DESC, id DESC
         LIMIT 500
         `,
+        [organizationId],
       ),
       query(
         `
@@ -403,9 +417,11 @@ export class ShipmentsService {
         JOIN lots l ON l.id = a.lot_id
         WHERE a.status = 'allocated'
           AND a.shipment_id IS NULL
+          AND a.organization_id = $1
         ORDER BY a.id DESC
         LIMIT 1000
         `,
+        [organizationId],
       ),
       query(
         `
@@ -417,9 +433,11 @@ export class ShipmentsService {
           c.contract_number
         FROM shipments s
         JOIN contracts c ON c.id = s.contract_id
+        WHERE s.organization_id = $1
         ORDER BY s.created_at DESC, s.id DESC
         LIMIT 500
         `,
+        [organizationId],
       ),
     ]);
 

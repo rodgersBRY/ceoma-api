@@ -11,12 +11,15 @@ import { notificationsService } from "../notifications/notifications.service.js"
 import { StockAdjustmentInput } from "./inventory.validation.js";
 
 export class InventoryService {
-  async listLots(listQuery: ListQueryParams): Promise<unknown> {
+  async listLots(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const gradeId = toIntFilter(listQuery.filters, "grade_id");
     const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
     const supplierId = toIntFilter(listQuery.filters, "supplier_id");
+
+    values.push(organizationId);
+    whereClauses.push(`l.organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -91,11 +94,12 @@ export class InventoryService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async adjustStock(input: StockAdjustmentInput): Promise<unknown> {
+  async adjustStock(input: StockAdjustmentInput, organizationId: number): Promise<unknown> {
     const adjustment = await withTransaction(async (client) => {
-      const lotResult = await client.query("SELECT * FROM lots WHERE id = $1 FOR UPDATE", [
-        input.lot_id,
-      ]);
+      const lotResult = await client.query(
+        "SELECT * FROM lots WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        [input.lot_id, organizationId],
+      );
       if (lotResult.rowCount === 0) {
         throw new ApiError(404, `Lot ${input.lot_id} not found`);
       }
@@ -111,19 +115,19 @@ export class InventoryService {
         `
         UPDATE lots
         SET weight_total_kg = $1, weight_available_kg = $2
-        WHERE id = $3;
+        WHERE id = $3 AND organization_id = $4;
         `,
-        [Math.max(newTotal, 0), Math.max(newAvailable, 0), input.lot_id],
+        [Math.max(newTotal, 0), Math.max(newAvailable, 0), input.lot_id, organizationId],
       );
-      await refreshLotStatus(client, input.lot_id);
+      await refreshLotStatus(client, input.lot_id, organizationId);
 
       const insertResult = await client.query(
         `
-        INSERT INTO stock_adjustments (lot_id, adjustment_kg, reason, approved_by)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO stock_adjustments (lot_id, adjustment_kg, reason, approved_by, organization_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING *;
         `,
-        [input.lot_id, input.adjustment_kg, input.reason, input.approved_by],
+        [input.lot_id, input.adjustment_kg, input.reason, input.approved_by, organizationId],
       );
       return {
         adjustment: insertResult.rows[0],
@@ -141,13 +145,18 @@ export class InventoryService {
     return adjustment.adjustment;
   }
 
-  async getDashboard(): Promise<unknown> {
+  async getDashboard(organizationId: number): Promise<unknown> {
     const lotsResult = await query(
-      "SELECT grade_id, source, weight_total_kg, weight_available_kg FROM lots",
+      "SELECT grade_id, source, weight_total_kg, weight_available_kg FROM lots WHERE organization_id = $1",
+      [organizationId],
     );
-    const gradesResult = await query("SELECT id, code FROM grades");
+    const gradesResult = await query(
+      "SELECT id, code FROM grades WHERE organization_id = $1",
+      [organizationId],
+    );
     const allocatedResult = await query(
-      "SELECT COALESCE(SUM(allocated_kg), 0) AS total FROM allocations WHERE status = 'allocated'",
+      "SELECT COALESCE(SUM(allocated_kg), 0) AS total FROM allocations WHERE status = 'allocated' AND organization_id = $1",
+      [organizationId],
     );
 
     const gradeMap = new Map<number, string>();
@@ -193,36 +202,44 @@ export class InventoryService {
     };
   }
 
-  async getReferenceData(): Promise<unknown> {
+  async getReferenceData(organizationId: number): Promise<unknown> {
     const [gradesResult, warehousesResult, suppliersResult, lotsResult] = await Promise.all([
       query(
         `
         SELECT id, code
         FROM grades
+        WHERE organization_id = $1
         ORDER BY code ASC
         `,
+        [organizationId],
       ),
       query(
         `
         SELECT id, name
         FROM warehouses
+        WHERE organization_id = $1
         ORDER BY name ASC
         `,
+        [organizationId],
       ),
       query(
         `
         SELECT id, name, supplier_type
         FROM suppliers
+        WHERE organization_id = $1
         ORDER BY name ASC
         `,
+        [organizationId],
       ),
       query(
         `
         SELECT id, lot_code, source, status, weight_available_kg
         FROM lots
+        WHERE organization_id = $1
         ORDER BY created_at DESC, id DESC
         LIMIT 1000
         `,
+        [organizationId],
       ),
     ]);
 

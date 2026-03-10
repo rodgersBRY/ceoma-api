@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 
+import { ApiError } from "../../common/errors/ApiError.js";
 import { parseListQuery } from "../../common/pagination.js";
 import { procurementService } from "./procurement.service.js";
 import {
@@ -10,27 +11,45 @@ import {
 
 export class ProcurementController {
   async createAuctionLot(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const payload = auctionLotSchema.parse(req.body);
-    const lot = await procurementService.createAuctionLot(payload);
+    const lot = await procurementService.createAuctionLot(payload, req.auth.organizationId);
     res.status(201).json(lot);
   }
 
   async createDirectAgreement(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const payload = directAgreementSchema.parse(req.body);
-    const agreement = await procurementService.createDirectAgreement(payload);
+    const agreement = await procurementService.createDirectAgreement(
+      payload,
+      req.auth.organizationId,
+    );
     res.status(201).json(agreement);
   }
 
   async listDirectAgreements(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const query = parseListQuery(req.query as Record<string, unknown>, {
       allowedSortBy: ["id", "agreement_reference", "supplier_id", "crop_year", "created_at"],
       defaultSortBy: "created_at",
     });
-    const agreements = await procurementService.listDirectAgreements(query);
+    const agreements = await procurementService.listDirectAgreements(
+      query,
+      req.auth.organizationId,
+    );
     res.json(agreements);
   }
 
   async listAuctionLots(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const query = parseListQuery(req.query as Record<string, unknown>, {
       allowedSortBy: [
         "id",
@@ -49,17 +68,23 @@ export class ProcurementController {
       ],
       defaultSortBy: "created_at",
     });
-    const lots = await procurementService.listAuctionLots(query);
+    const lots = await procurementService.listAuctionLots(query, req.auth.organizationId);
     res.json(lots);
   }
 
   async createDirectDelivery(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const payload = directDeliverySchema.parse(req.body);
-    const lot = await procurementService.createDirectDelivery(payload);
+    const lot = await procurementService.createDirectDelivery(payload, req.auth.organizationId);
     res.status(201).json(lot);
   }
 
   async listDirectDeliveries(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const query = parseListQuery(req.query as Record<string, unknown>, {
       allowedSortBy: [
         "id",
@@ -80,12 +105,18 @@ export class ProcurementController {
       ],
       defaultSortBy: "created_at",
     });
-    const deliveries = await procurementService.listDirectDeliveries(query);
+    const deliveries = await procurementService.listDirectDeliveries(
+      query,
+      req.auth.organizationId,
+    );
     res.json(deliveries);
   }
 
-  async getReferenceData(_req: Request, res: Response): Promise<void> {
-    const data = await procurementService.getReferenceData();
+  async getReferenceData(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
+    const data = await procurementService.getReferenceData(req.auth.organizationId);
     res.json(data);
   }
 }

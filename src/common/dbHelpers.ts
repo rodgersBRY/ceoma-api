@@ -40,14 +40,19 @@ export async function ensureReference(
   table: string,
   id: number,
   label: string,
+  organizationId?: number,
 ): Promise<void> {
   if (!/^[a-z_]+$/.test(table)) {
     throw new ApiError(500, `Unsafe SQL identifier for table: ${table}`);
   }
 
-  const result = await client.query(`SELECT id FROM ${table} WHERE id = $1`, [
-    id,
-  ]);
+  const result =
+    organizationId === undefined
+      ? await client.query(`SELECT id FROM ${table} WHERE id = $1`, [id])
+      : await client.query(
+          `SELECT id FROM ${table} WHERE id = $1 AND organization_id = $2`,
+          [id, organizationId],
+        );
 
   if (result.rowCount === 0) {
     throw new ApiError(404, `${label} ${id} not found`);
@@ -57,11 +62,18 @@ export async function ensureReference(
 export async function refreshLotStatus(
   client: PoolClient,
   lotId: number,
+  organizationId?: number,
 ): Promise<void> {
-  const lotResult = await client.query(
-    "SELECT weight_available_kg FROM lots WHERE id = $1 FOR UPDATE",
-    [lotId],
-  );
+  const lotResult =
+    organizationId === undefined
+      ? await client.query(
+          "SELECT weight_available_kg FROM lots WHERE id = $1 FOR UPDATE",
+          [lotId],
+        )
+      : await client.query(
+          "SELECT weight_available_kg FROM lots WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+          [lotId, organizationId],
+        );
 
   if (lotResult.rowCount === 0) {
     throw new ApiError(404, `Lot ${lotId} not found`);
@@ -84,8 +96,16 @@ export async function refreshLotStatus(
     status = "allocated";
   }
 
-  await client.query("UPDATE lots SET status = $1 WHERE id = $2", [
-    status,
-    lotId,
-  ]);
+  if (organizationId === undefined) {
+    await client.query("UPDATE lots SET status = $1 WHERE id = $2", [
+      status,
+      lotId,
+    ]);
+  } else {
+    await client.query("UPDATE lots SET status = $1 WHERE id = $2 AND organization_id = $3", [
+      status,
+      lotId,
+      organizationId,
+    ]);
+  }
 }

@@ -14,11 +14,11 @@ import {
 } from "./procurement.validation.js";
 
 export class ProcurementService {
-  async createAuctionLot(input: AuctionLotInput): Promise<unknown> {
+  async createAuctionLot(input: AuctionLotInput, organizationId: number): Promise<unknown> {
     return withTransaction(async (client) => {
       const supplierResult = await client.query(
-        "SELECT supplier_type FROM suppliers WHERE id = $1",
-        [input.marketing_agent_id],
+        "SELECT supplier_type FROM suppliers WHERE id = $1 AND organization_id = $2",
+        [input.marketing_agent_id, organizationId],
       );
       if (supplierResult.rowCount === 0) {
         throw new ApiError(404, `Supplier ${input.marketing_agent_id} not found`);
@@ -31,18 +31,18 @@ export class ProcurementService {
         );
       }
 
-      await ensureReference(client, "grades", input.grade_id, "Grade");
-      await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse");
-      await ensureReference(client, "bag_types", input.bag_type_id, "Bag type");
+      await ensureReference(client, "grades", input.grade_id, "Grade", organizationId);
+      await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse", organizationId);
+      await ensureReference(client, "bag_types", input.bag_type_id, "Bag type", organizationId);
 
       const lotResult = await client.query(
         `
         INSERT INTO lots (
           lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
           bags_total, weight_total_kg, weight_available_kg, purchase_price_per_kg,
-          auction_fees_total, additional_cost_total, status
+          auction_fees_total, additional_cost_total, status, organization_id
         )
-        VALUES ($1, 'auction', $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, 0, 'in_stock')
+        VALUES ($1, 'auction', $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, 0, 'in_stock', $12)
         RETURNING *;
         `,
         [
@@ -57,6 +57,7 @@ export class ProcurementService {
           input.weight_total_kg,
           input.purchase_price_per_kg,
           input.auction_fees_total,
+          organizationId,
         ],
       );
       const insertedLot = lotResult.rows[0];
@@ -64,26 +65,27 @@ export class ProcurementService {
       await client.query(
         `
         INSERT INTO auction_procurements (
-          lot_id, auction_lot_number, marketing_agent_id, catalog_document_path, immutable
+          lot_id, auction_lot_number, marketing_agent_id, catalog_document_path, immutable, organization_id
         )
-        VALUES ($1, $2, $3, $4, TRUE);
+        VALUES ($1, $2, $3, $4, TRUE, $5);
         `,
         [
           insertedLot.id,
           input.lot_number,
           input.marketing_agent_id,
           input.catalog_document_path ?? null,
+          organizationId,
         ],
       );
       return insertedLot;
     });
   }
 
-  async createDirectAgreement(input: DirectAgreementInput): Promise<unknown> {
+  async createDirectAgreement(input: DirectAgreementInput, organizationId: number): Promise<unknown> {
     return withTransaction(async (client) => {
       const supplierResult = await client.query(
-        "SELECT supplier_type FROM suppliers WHERE id = $1",
-        [input.supplier_id],
+        "SELECT supplier_type FROM suppliers WHERE id = $1 AND organization_id = $2",
+        [input.supplier_id, organizationId],
       );
       if (supplierResult.rowCount === 0) {
         throw new ApiError(404, `Supplier ${input.supplier_id} not found`);
@@ -99,9 +101,9 @@ export class ProcurementService {
       const result = await client.query(
         `
         INSERT INTO direct_agreements (
-          supplier_id, agreement_reference, agreed_price_per_kg, currency, crop_year
+          supplier_id, agreement_reference, agreed_price_per_kg, currency, crop_year, organization_id
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *;
         `,
         [
@@ -110,26 +112,27 @@ export class ProcurementService {
           input.agreed_price_per_kg,
           input.currency,
           input.crop_year,
+          organizationId,
         ],
       );
       return result.rows[0];
     });
   }
 
-  async createDirectDelivery(input: DirectDeliveryInput): Promise<unknown> {
+  async createDirectDelivery(input: DirectDeliveryInput, organizationId: number): Promise<unknown> {
     return withTransaction(async (client) => {
       const agreementResult = await client.query(
-        "SELECT * FROM direct_agreements WHERE id = $1",
-        [input.agreement_id],
+        "SELECT * FROM direct_agreements WHERE id = $1 AND organization_id = $2",
+        [input.agreement_id, organizationId],
       );
       if (agreementResult.rowCount === 0) {
         throw new ApiError(404, `Direct agreement ${input.agreement_id} not found`);
       }
       const agreement = agreementResult.rows[0];
 
-      await ensureReference(client, "grades", input.grade_id, "Grade");
-      await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse");
-      await ensureReference(client, "bag_types", input.bag_type_id, "Bag type");
+      await ensureReference(client, "grades", input.grade_id, "Grade", organizationId);
+      await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse", organizationId);
+      await ensureReference(client, "bag_types", input.bag_type_id, "Bag type", organizationId);
 
       const additionalCost = input.processing_cost_total + input.transport_cost_total;
       const lotResult = await client.query(
@@ -137,9 +140,9 @@ export class ProcurementService {
         INSERT INTO lots (
           lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
           bags_total, weight_total_kg, weight_available_kg, purchase_price_per_kg,
-          auction_fees_total, additional_cost_total, status
+          auction_fees_total, additional_cost_total, status, organization_id
         )
-        VALUES ($1, 'direct', $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, 0, $11, 'in_stock')
+        VALUES ($1, 'direct', $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, 0, $11, 'in_stock', $12)
         RETURNING *;
         `,
         [
@@ -154,6 +157,7 @@ export class ProcurementService {
           input.weight_total_kg,
           agreement.agreed_price_per_kg,
           additionalCost,
+          organizationId,
         ],
       );
       const insertedLot = lotResult.rows[0];
@@ -161,9 +165,9 @@ export class ProcurementService {
       await client.query(
         `
         INSERT INTO direct_deliveries (
-          agreement_id, lot_id, delivery_reference, moisture_percent, screen_size, defects_percent
+          agreement_id, lot_id, delivery_reference, moisture_percent, screen_size, defects_percent, organization_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6);
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
         `,
         [
           input.agreement_id,
@@ -172,16 +176,20 @@ export class ProcurementService {
           input.moisture_percent,
           input.screen_size,
           input.defects_percent,
+          organizationId,
         ],
       );
       return insertedLot;
     });
   }
 
-  async listDirectAgreements(listQuery: ListQueryParams): Promise<unknown> {
+  async listDirectAgreements(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const supplierId = toIntFilter(listQuery.filters, "supplier_id");
+
+    values.push(organizationId);
+    whereClauses.push(`da.organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -202,7 +210,7 @@ export class ProcurementService {
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
     const countResult = await query<{ total: number }>(
-      `SELECT COUNT(*)::int AS total FROM direct_agreements ${whereSql}`,
+      `SELECT COUNT(*)::int AS total FROM direct_agreements da ${whereSql}`,
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
@@ -222,12 +230,15 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async listAuctionLots(listQuery: ListQueryParams): Promise<unknown> {
+  async listAuctionLots(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = ["l.source = 'auction'"];
     const values: unknown[] = [];
     const marketingAgentId = toIntFilter(listQuery.filters, "marketing_agent_id");
     const gradeId = toIntFilter(listQuery.filters, "grade_id");
     const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
+
+    values.push(organizationId);
+    whereClauses.push(`l.organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -302,13 +313,16 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async listDirectDeliveries(listQuery: ListQueryParams): Promise<unknown> {
+  async listDirectDeliveries(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = ["l.source = 'direct'"];
     const values: unknown[] = [];
     const supplierId = toIntFilter(listQuery.filters, "supplier_id");
     const agreementId = toIntFilter(listQuery.filters, "agreement_id");
     const gradeId = toIntFilter(listQuery.filters, "grade_id");
     const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
+
+    values.push(organizationId);
+    whereClauses.push(`l.organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -395,45 +409,53 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async getReferenceData(): Promise<unknown> {
+  async getReferenceData(organizationId: number): Promise<unknown> {
     const [suppliersResult, marketingAgentsResult, warehousesResult, gradesResult, bagTypesResult, agreementsResult] =
       await Promise.all([
         query(
           `
           SELECT id, name, supplier_type
           FROM suppliers
-          WHERE supplier_type <> 'auction_agent'
+          WHERE supplier_type <> 'auction_agent' AND organization_id = $1
           ORDER BY name ASC
           `,
+          [organizationId],
         ),
         query(
           `
           SELECT id, name, supplier_type
           FROM suppliers
-          WHERE supplier_type = 'auction_agent'
+          WHERE supplier_type = 'auction_agent' AND organization_id = $1
           ORDER BY name ASC
           `,
+          [organizationId],
         ),
         query(
           `
           SELECT id, name, location
           FROM warehouses
+          WHERE organization_id = $1
           ORDER BY name ASC
           `,
+          [organizationId],
         ),
         query(
           `
           SELECT id, code, description
           FROM grades
+          WHERE organization_id = $1
           ORDER BY code ASC
           `,
+          [organizationId],
         ),
         query(
           `
           SELECT id, name, weight_kg
           FROM bag_types
+          WHERE organization_id = $1
           ORDER BY weight_kg ASC, name ASC
           `,
+          [organizationId],
         ),
         query(
           `
@@ -446,9 +468,11 @@ export class ProcurementService {
             s.name AS supplier_name
           FROM direct_agreements da
           JOIN suppliers s ON s.id = da.supplier_id
+          WHERE da.organization_id = $1
           ORDER BY da.created_at DESC, da.id DESC
           LIMIT 500
           `,
+          [organizationId],
         ),
       ]);
 

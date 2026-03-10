@@ -12,8 +12,15 @@ import {
 } from "../../common/pagination.js";
 import { query, withTransaction } from "../../db/pool.js";
 import { AuthContext, UserRole } from "../../types/auth.js";
-import { hashPassword, verifyPasswordHash } from "../../common/security/password.js";
-import { encryptSensitiveText, hashSha256, secureRandomToken } from "../../common/security/crypto.js";
+import {
+  hashPassword,
+  verifyPasswordHash,
+} from "../../common/security/password.js";
+import {
+  encryptSensitiveText,
+  hashSha256,
+  secureRandomToken,
+} from "../../common/security/crypto.js";
 import {
   signAccessToken,
   signRefreshToken,
@@ -35,6 +42,7 @@ type UserRow = {
   full_name: string;
   role: UserRole;
   is_active: boolean;
+  organization_id: number;
 };
 
 type UserListRow = {
@@ -44,6 +52,7 @@ type UserListRow = {
   role: UserRole;
   status: "active" | "disabled";
   is_active: boolean;
+  organization_id: number;
   last_login_at: Date | null;
   created_at: Date;
 };
@@ -56,6 +65,7 @@ type SessionRow = {
   revoked_at: Date | null;
   role: UserRole;
   is_active: boolean;
+  organization_id: number;
 };
 
 function getExpiryDateFromJwt(token: string): Date {
@@ -63,10 +73,12 @@ function getExpiryDateFromJwt(token: string): Date {
   if (!decoded || typeof decoded === "string") {
     throw new ApiError(500, "Unable to decode token expiry");
   }
+
   const payload = decoded as JwtPayload;
   if (typeof payload.exp !== "number") {
     throw new ApiError(500, "Token missing expiry");
   }
+
   return new Date(payload.exp * 1000);
 }
 
@@ -77,11 +89,24 @@ function mapUserPublic(row: UserRow): Record<string, unknown> {
     full_name: row.full_name,
     role: row.role,
     is_active: row.is_active,
+    organization_id: row.organization_id,
   };
 }
 
+function slugifyOrganization(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
 export class AuthService {
-  async register(input: RegisterInput, actor?: AuthContext): Promise<Record<string, unknown>> {
+  async register(
+    input: RegisterInput,
+    actor?: AuthContext,
+  ): Promise<Record<string, unknown>> {
     const email = input.email.toLowerCase();
     const usersCountResult = await query<{ count: string }>(
       "SELECT COUNT(*)::text AS count FROM users",
@@ -101,15 +126,84 @@ export class AuthService {
     const role: UserRole = isBootstrap ? "admin" : (input.role ?? "trader");
     const passwordHash = await hashPassword(input.password);
 
-    const result = await query<UserRow>(
-      `
-      INSERT INTO users (email, password_hash, full_name, role, is_active, updated_at)
-      VALUES ($1, $2, $3, $4, TRUE, NOW())
-      RETURNING id, email, password_hash, full_name, role, is_active;
-      `,
-      [email, passwordHash, input.full_name, role],
-    );
-    return mapUserPublic(result.rows[0]);
+    const created = await withTransaction(async (client) => {
+      let organizationId = actor?.organizationId;
+
+      if (isBootstrap) {
+        if (!input.organization_name) {
+          throw new ApiError(
+            400,
+            "organization_name is required for initial registration",
+          );
+        }
+
+        const baseSlug = slugifyOrganization(input.organization_name);
+        if (!baseSlug) {
+          throw new ApiError(400, "Invalid organization_name");
+        }
+
+        let slug = baseSlug;
+        let orgResult = await client.query<{ id: number }>(
+          `
+          INSERT INTO organizations (name, slug)
+          VALUES ($1, $2)
+          ON CONFLICT (slug) DO NOTHING
+          RETURNING id
+          `,
+          [input.organization_name, slug],
+        );
+
+        let attempts = 0;
+        while (orgResult.rowCount === 0 && attempts < 5) {
+          attempts += 1;
+          slug = `${baseSlug}-${Math.floor(Math.random() * 10000)}`;
+          orgResult = await client.query<{ id: number }>(
+            `
+            INSERT INTO organizations (name, slug)
+            VALUES ($1, $2)
+            ON CONFLICT (slug) DO NOTHING
+            RETURNING id
+            `,
+            [input.organization_name, slug],
+          );
+        }
+
+        if (orgResult.rowCount === 0) {
+          throw new ApiError(
+            409,
+            "Unable to create organization. Try a different name.",
+          );
+        }
+
+        organizationId = orgResult.rows[0].id;
+
+        await client.query(
+          `
+          INSERT INTO subscriptions (organization_id, plan, status, trial_ends_at)
+          VALUES ($1, 'starter', 'trialing', NOW() + INTERVAL '14 days')
+          ON CONFLICT (organization_id) DO NOTHING
+          `,
+          [organizationId],
+        );
+      }
+
+      if (!organizationId) {
+        throw new ApiError(500, "Organization context missing");
+      }
+
+      const result = await client.query<UserRow>(
+        `
+        INSERT INTO users (email, password_hash, full_name, role, is_active, updated_at, organization_id)
+        VALUES ($1, $2, $3, $4, TRUE, NOW(), $5)
+        RETURNING id, email, password_hash, full_name, role, is_active, organization_id;
+        `,
+        [email, passwordHash, input.full_name, role, organizationId],
+      );
+
+      return result.rows[0];
+    });
+
+    return mapUserPublic(created);
   }
 
   async login(
@@ -119,7 +213,7 @@ export class AuthService {
     const email = input.email.toLowerCase();
     const userResult = await query<UserRow>(
       `
-      SELECT id, email, password_hash, full_name, role, is_active
+      SELECT id, email, password_hash, full_name, role, is_active, organization_id
       FROM users
       WHERE email = $1
       `,
@@ -133,6 +227,7 @@ export class AuthService {
     if (!user.is_active) {
       throw new ApiError(403, "User account is inactive");
     }
+
     const valid = await verifyPasswordHash(user.password_hash, input.password);
     if (!valid) {
       throw new ApiError(401, "Invalid credentials");
@@ -143,12 +238,14 @@ export class AuthService {
     const accessToken = signAccessToken({
       userId: user.id,
       role: user.role,
+      organizationId: user.organization_id,
       sessionId,
     });
 
     const refreshToken = signRefreshToken({
       userId: user.id,
       role: user.role,
+      organizationId: user.organization_id,
       sessionId,
     });
 
@@ -172,7 +269,10 @@ export class AuthService {
           expiresAt,
         ],
       );
-      await client.query("UPDATE users SET last_login_at = NOW() WHERE id = $1", [user.id]);
+      await client.query(
+        "UPDATE users SET last_login_at = NOW() WHERE id = $1",
+        [user.id],
+      );
     });
 
     return {
@@ -194,7 +294,8 @@ export class AuthService {
         s.expires_at,
         s.revoked_at,
         u.role,
-        u.is_active
+        u.is_active,
+        u.organization_id
       FROM user_sessions s
       JOIN users u ON u.id = s.user_id
       WHERE s.id = $1
@@ -214,21 +315,28 @@ export class AuthService {
     if (session.user_id !== Number(claims.sub)) {
       throw new ApiError(401, "Session user mismatch");
     }
+    if (session.organization_id !== claims.organizationId) {
+      throw new ApiError(401, "Session organization mismatch");
+    }
 
     const incomingHash = hashSha256(input.refresh_token);
     if (incomingHash !== session.refresh_token_hash) {
-      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [session.id]);
+      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [
+        session.id,
+      ]);
       throw new ApiError(401, "Refresh token mismatch");
     }
 
     const newAccessToken = signAccessToken({
       userId: session.user_id,
       role: session.role,
+      organizationId: session.organization_id,
       sessionId: session.id,
     });
     const newRefreshToken = signRefreshToken({
       userId: session.user_id,
       role: session.role,
+      organizationId: session.organization_id,
       sessionId: session.id,
     });
     const newRefreshHash = hashSha256(newRefreshToken);
@@ -256,7 +364,9 @@ export class AuthService {
       if (Number(claims.sub) !== actor.userId && actor.role !== "admin") {
         throw new ApiError(403, "You cannot revoke another user's session");
       }
-      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [claims.sessionId]);
+      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [
+        claims.sessionId,
+      ]);
       return;
     }
 
@@ -269,7 +379,7 @@ export class AuthService {
   async getCurrentUser(actor: AuthContext): Promise<Record<string, unknown>> {
     const result = await query<UserRow>(
       `
-      SELECT id, email, password_hash, full_name, role, is_active
+      SELECT id, email, password_hash, full_name, role, is_active, organization_id
       FROM users
       WHERE id = $1
       `,
@@ -281,7 +391,10 @@ export class AuthService {
     return mapUserPublic(result.rows[0]);
   }
 
-  async listUsers(actor: AuthContext, listQuery: ListQueryParams): Promise<unknown> {
+  async listUsers(
+    actor: AuthContext,
+    listQuery: ListQueryParams,
+  ): Promise<unknown> {
     if (actor.role !== "admin") {
       throw new ApiError(403, "Only admin users can list accounts");
     }
@@ -291,31 +404,49 @@ export class AuthService {
     const activeFilter = toBooleanFilter(listQuery.filters, "is_active");
     const statusFilter = listQuery.filters.status;
     const roleFilter = listQuery.filters.role;
-    const allowedRoles: UserRole[] = ["admin", "trader", "warehouse", "finance", "compliance"];
+    const allowedRoles: UserRole[] = [
+      "admin",
+      "trader",
+      "warehouse",
+      "finance",
+      "compliance",
+    ];
+
+    values.push(actor.organizationId);
+    whereClauses.push(`organization_id = $${values.length}`);
 
     if (activeFilter !== undefined) {
       values.push(activeFilter);
       whereClauses.push(`is_active = $${values.length}`);
     } else if (statusFilter) {
       if (statusFilter !== "active" && statusFilter !== "disabled") {
-        throw new ApiError(400, "filter_status must be one of: active, disabled");
+        throw new ApiError(
+          400,
+          "filter_status must be one of: active, disabled",
+        );
       }
       values.push(statusFilter === "active");
       whereClauses.push(`is_active = $${values.length}`);
     }
     if (roleFilter) {
       if (!allowedRoles.includes(roleFilter as UserRole)) {
-        throw new ApiError(400, "filter_role must be one of: admin, trader, warehouse, finance, compliance");
+        throw new ApiError(
+          400,
+          "filter_role must be one of: admin, trader, warehouse, finance, compliance",
+        );
       }
       values.push(roleFilter);
       whereClauses.push(`role = $${values.length}`);
     }
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
-      whereClauses.push(`(email ILIKE $${values.length} ESCAPE '\\' OR full_name ILIKE $${values.length} ESCAPE '\\')`);
+      whereClauses.push(
+        `(email ILIKE $${values.length} ESCAPE '\\' OR full_name ILIKE $${values.length} ESCAPE '\\')`,
+      );
     }
 
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const whereSql =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
     const countResult = await query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM users ${whereSql}`,
       values,
@@ -331,6 +462,7 @@ export class AuthService {
         role,
         CASE WHEN is_active THEN 'active' ELSE 'disabled' END AS status,
         is_active,
+        organization_id,
         last_login_at,
         created_at
       FROM users
@@ -340,7 +472,11 @@ export class AuthService {
       `,
       values,
     );
-    return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
+    return buildPaginatedResult(
+      result.rows,
+      Number(countResult.rows[0].total),
+      listQuery,
+    );
   }
 
   async updateUserStatus(
@@ -391,12 +527,15 @@ export class AuthService {
   ): Promise<Record<string, unknown>> {
     const targetUserId = input.user_id ?? actor.userId;
     if (targetUserId !== actor.userId && actor.role !== "admin") {
-      throw new ApiError(403, "Only admin can create API keys for another user");
+      throw new ApiError(
+        403,
+        "Only admin can create API keys for another user",
+      );
     }
 
     const userResult = await query<{ id: number; is_active: boolean }>(
-      "SELECT id, is_active FROM users WHERE id = $1",
-      [targetUserId],
+      "SELECT id, is_active FROM users WHERE id = $1 AND organization_id = $2",
+      [targetUserId, actor.organizationId],
     );
     if (userResult.rowCount === 0 || !userResult.rows[0].is_active) {
       throw new ApiError(404, "Target user is not active or missing");
@@ -431,16 +570,26 @@ export class AuthService {
     };
   }
 
-  async listApiKeys(actor: AuthContext, listQuery: ListQueryParams): Promise<unknown> {
+  async listApiKeys(
+    actor: AuthContext,
+    listQuery: ListQueryParams,
+  ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const filteredUserId = toIntFilter(listQuery.filters, "user_id");
     const filteredActive = toBooleanFilter(listQuery.filters, "is_active");
 
-    if (actor.role !== "admin" && filteredUserId && filteredUserId !== actor.userId) {
-      throw new ApiError(403, "Non-admin users cannot query API keys for another user");
+    if (
+      actor.role !== "admin" &&
+      filteredUserId &&
+      filteredUserId !== actor.userId
+    ) {
+      throw new ApiError(
+        403,
+        "Non-admin users cannot query API keys for another user",
+      );
     }
-    
+
     if (actor.role === "admin") {
       if (filteredUserId) {
         values.push(filteredUserId);
@@ -450,6 +599,9 @@ export class AuthService {
       values.push(actor.userId);
       whereClauses.push(`user_id = $${values.length}`);
     }
+
+    values.push(actor.organizationId);
+    whereClauses.push(`u.organization_id = $${values.length}`);
     if (filteredActive !== undefined) {
       values.push(filteredActive);
       whereClauses.push(`is_active = $${values.length}`);
@@ -459,9 +611,10 @@ export class AuthService {
       whereClauses.push(`name ILIKE $${values.length} ESCAPE '\\'`);
     }
 
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const whereSql =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
     const countResult = await query<{ total: number }>(
-      `SELECT COUNT(*)::int AS total FROM api_keys ${whereSql}`,
+      `SELECT COUNT(*)::int AS total FROM api_keys ak JOIN users u ON u.id = ak.user_id ${whereSql}`,
       values,
     );
 
@@ -469,26 +622,34 @@ export class AuthService {
     const result = await query(
       `
       SELECT
-        id,
-        user_id,
-        name,
-        key_prefix,
-        is_active,
-        expires_at,
-        last_used_at,
-        created_at,
-        revoked_at
-      FROM api_keys
+        ak.id,
+        ak.user_id,
+        ak.name,
+        ak.key_prefix,
+        ak.is_active,
+        ak.expires_at,
+        ak.last_used_at,
+        ak.created_at,
+        ak.revoked_at
+      FROM api_keys ak
+      JOIN users u ON u.id = ak.user_id
       ${whereSql}
-      ORDER BY ${listQuery.sortBy} ${listQuery.sortOrder}
+      ORDER BY ak.${listQuery.sortBy} ${listQuery.sortOrder}
       LIMIT $${values.length - 1} OFFSET $${values.length}
       `,
       values,
     );
-    return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
+    return buildPaginatedResult(
+      result.rows,
+      Number(countResult.rows[0].total),
+      listQuery,
+    );
   }
 
-  async revokeApiKey(actor: AuthContext, apiKeyId: string): Promise<Record<string, unknown>> {
+  async revokeApiKey(
+    actor: AuthContext,
+    apiKeyId: string,
+  ): Promise<Record<string, unknown>> {
     if (actor.role !== "admin") {
       throw new ApiError(403, "Only admin users can revoke API keys");
     }

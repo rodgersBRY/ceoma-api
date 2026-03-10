@@ -16,20 +16,20 @@ import { notificationsService } from "../notifications/notifications.service.js"
 import { AllocationInput, ContractInput } from "./contracts.validation.js";
 
 export class ContractsService {
-  async createContract(input: ContractInput): Promise<unknown> {
+  async createContract(input: ContractInput, organizationId: number): Promise<unknown> {
     const created = await withTransaction(async (client) => {
-      await ensureReference(client, "buyers", input.buyer_id, "Buyer");
+      await ensureReference(client, "buyers", input.buyer_id, "Buyer", organizationId);
       if (input.grade_id) {
-        await ensureReference(client, "grades", input.grade_id, "Grade");
+        await ensureReference(client, "grades", input.grade_id, "Grade", organizationId);
       }
 
       const result = await client.query(
         `
         INSERT INTO contracts (
           contract_number, buyer_id, grade_id, quantity_kg, price_per_kg, price_terms,
-          currency, shipment_window_start, shipment_window_end, allocated_kg, shipped_kg, status
+          currency, shipment_window_start, shipment_window_end, allocated_kg, shipped_kg, status, organization_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9::date, 0, 0, 'open')
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9::date, 0, 0, 'open', $10)
         RETURNING *;
         `,
         [
@@ -42,9 +42,13 @@ export class ContractsService {
           input.currency,
           input.shipment_window_start,
           input.shipment_window_end,
+          organizationId,
         ],
       );
-      const buyerResult = await client.query("SELECT name FROM buyers WHERE id = $1", [input.buyer_id]);
+      const buyerResult = await client.query(
+        "SELECT name FROM buyers WHERE id = $1 AND organization_id = $2",
+        [input.buyer_id, organizationId],
+      );
       return {
         contract: result.rows[0],
         buyerName:
@@ -65,11 +69,12 @@ export class ContractsService {
     return created.contract;
   }
 
-  async allocateLot(contractId: number, input: AllocationInput): Promise<unknown> {
+  async allocateLot(contractId: number, input: AllocationInput, organizationId: number): Promise<unknown> {
     const allocated = await withTransaction(async (client) => {
-      const contractResult = await client.query("SELECT * FROM contracts WHERE id = $1 FOR UPDATE", [
-        contractId,
-      ]);
+      const contractResult = await client.query(
+        "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        [contractId, organizationId],
+      );
       if (contractResult.rowCount === 0) {
         throw new ApiError(404, `Contract ${contractId} not found`);
       }
@@ -78,7 +83,10 @@ export class ContractsService {
         throw new ApiError(400, "Contract is closed");
       }
 
-      const lotResult = await client.query("SELECT * FROM lots WHERE id = $1 FOR UPDATE", [input.lot_id]);
+      const lotResult = await client.query(
+        "SELECT * FROM lots WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        [input.lot_id, organizationId],
+      );
       if (lotResult.rowCount === 0) {
         throw new ApiError(404, `Lot ${input.lot_id} not found`);
       }
@@ -94,22 +102,22 @@ export class ContractsService {
 
       const insertResult = await client.query(
         `
-        INSERT INTO allocations (contract_id, lot_id, allocated_kg, status)
-        VALUES ($1, $2, $3, 'allocated')
+        INSERT INTO allocations (contract_id, lot_id, allocated_kg, status, organization_id)
+        VALUES ($1, $2, $3, 'allocated', $4)
         RETURNING *;
         `,
-        [contractId, input.lot_id, input.allocated_kg],
+        [contractId, input.lot_id, input.allocated_kg, organizationId],
       );
 
       const updatedContractResult = await client.query(
-        "UPDATE contracts SET allocated_kg = allocated_kg + $1 WHERE id = $2 RETURNING contract_number, allocated_kg, quantity_kg",
-        [input.allocated_kg, contractId],
+        "UPDATE contracts SET allocated_kg = allocated_kg + $1 WHERE id = $2 AND organization_id = $3 RETURNING contract_number, allocated_kg, quantity_kg",
+        [input.allocated_kg, contractId, organizationId],
       );
       await client.query(
-        "UPDATE lots SET weight_available_kg = weight_available_kg - $1 WHERE id = $2",
-        [input.allocated_kg, input.lot_id],
+        "UPDATE lots SET weight_available_kg = weight_available_kg - $1 WHERE id = $2 AND organization_id = $3",
+        [input.allocated_kg, input.lot_id, organizationId],
       );
-      await refreshLotStatus(client, input.lot_id);
+      await refreshLotStatus(client, input.lot_id, organizationId);
       const updatedContract = updatedContractResult.rows[0];
       return {
         allocation: insertResult.rows[0],
@@ -129,10 +137,13 @@ export class ContractsService {
     return allocated.allocation;
   }
 
-  async getDashboard(listQuery: ListQueryParams): Promise<unknown> {
+  async getDashboard(listQuery: ListQueryParams, organizationId: number): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const buyerId = toIntFilter(listQuery.filters, "buyer_id");
+
+    values.push(organizationId);
+    whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -216,30 +227,35 @@ export class ContractsService {
     };
   }
 
-  async getReferenceData(): Promise<unknown> {
+  async getReferenceData(organizationId: number): Promise<unknown> {
     const [buyersResult, gradesResult, contractsResult, lotsResult] = await Promise.all([
       query(
         `
         SELECT id, name, country
         FROM buyers
+        WHERE organization_id = $1
         ORDER BY name ASC
         `,
+        [organizationId],
       ),
       query(
         `
         SELECT id, code, description
         FROM grades
+        WHERE organization_id = $1
         ORDER BY code ASC
         `,
+        [organizationId],
       ),
       query(
         `
         SELECT id, contract_number, status, shipment_window_end
         FROM contracts
-        WHERE status IN ('open', 'partially_fulfilled')
+        WHERE status IN ('open', 'partially_fulfilled') AND organization_id = $1
         ORDER BY shipment_window_end ASC, id DESC
         LIMIT 500
         `,
+        [organizationId],
       ),
       query(
         `
@@ -256,9 +272,11 @@ export class ContractsService {
         JOIN suppliers s ON s.id = l.supplier_id
         WHERE l.weight_available_kg > 0
           AND l.status IN ('in_stock', 'allocated')
+          AND l.organization_id = $1
         ORDER BY l.created_at DESC
         LIMIT 500
         `,
+        [organizationId],
       ),
     ]);
 

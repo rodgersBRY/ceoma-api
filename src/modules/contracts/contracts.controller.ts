@@ -7,22 +7,35 @@ import { allocationSchema, contractSchema } from "./contracts.validation.js";
 
 export class ContractsController {
   async createContract(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const payload = contractSchema.parse(req.body);
-    const contract = await contractsService.createContract(payload);
+    const contract = await contractsService.createContract(payload, req.auth.organizationId);
     res.status(201).json(contract);
   }
 
   async allocateLot(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const contractId = Number(req.params.contractId);
     if (!Number.isFinite(contractId) || contractId <= 0) {
       throw new ApiError(400, "Invalid contractId");
     }
     const payload = allocationSchema.parse(req.body);
-    const allocation = await contractsService.allocateLot(contractId, payload);
+    const allocation = await contractsService.allocateLot(
+      contractId,
+      payload,
+      req.auth.organizationId,
+    );
     res.status(201).json(allocation);
   }
 
   async getDashboard(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const query = parseListQuery(req.query as Record<string, unknown>, {
       allowedSortBy: [
         "id",
@@ -37,12 +50,15 @@ export class ContractsController {
       ],
       defaultSortBy: "created_at",
     });
-    const dashboard = await contractsService.getDashboard(query);
+    const dashboard = await contractsService.getDashboard(query, req.auth.organizationId);
     res.json(dashboard);
   }
 
-  async getReferenceData(_req: Request, res: Response): Promise<void> {
-    const data = await contractsService.getReferenceData();
+  async getReferenceData(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
+    const data = await contractsService.getReferenceData(req.auth.organizationId);
     res.json(data);
   }
 }

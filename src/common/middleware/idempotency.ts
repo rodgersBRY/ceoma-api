@@ -49,7 +49,7 @@ function buildFingerprint(req: Request, actorScope: string): string {
 
 function getActorScope(req: Request): string {
   if (req.auth) {
-    return `user:${req.auth.userId}`;
+    return `org:${req.auth.organizationId}:user:${req.auth.userId}`;
   }
   return `anonymous:${req.ip}`;
 }
