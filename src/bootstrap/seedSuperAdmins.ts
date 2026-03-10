@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { logger } from "../common/logger.js";
 import { hashPassword } from "../common/security/password.js";
 import { env } from "../config/env.js";
@@ -18,13 +20,14 @@ export async function seedSuperAdminsIfConfigured(): Promise<void> {
 
   const email = env.superAdminBootstrapEmail.trim().toLowerCase();
   const passwordHash = await hashPassword(env.superAdminBootstrapPassword);
+  const adminId = crypto.randomUUID();
 
   await query(
     `
-    INSERT INTO super_admins (email, password_hash)
-    VALUES ($1, $2)
+    INSERT INTO super_admins (id, email, password_hash)
+    VALUES ($1, $2, $3)
     `,
-    [email, passwordHash],
+    [adminId, email, passwordHash],
   );
 
   logger.info("Bootstrap super admin created", { email });

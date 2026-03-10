@@ -146,28 +146,30 @@ export class AuthService {
         }
 
         let slug = baseSlug;
+        let orgId = crypto.randomUUID();
         let orgResult = await client.query<{ id: string }>(
           `
-          INSERT INTO organizations (name, slug)
-          VALUES ($1, $2)
+          INSERT INTO organizations (id, name, slug)
+          VALUES ($1, $2, $3)
           ON CONFLICT (slug) DO NOTHING
           RETURNING id
           `,
-          [input.organization_name, slug],
+          [orgId, input.organization_name, slug],
         );
 
         let attempts = 0;
         while (orgResult.rowCount === 0 && attempts < 5) {
           attempts += 1;
           slug = `${baseSlug}-${Math.floor(Math.random() * 10000)}`;
+          orgId = crypto.randomUUID();
           orgResult = await client.query<{ id: string }>(
             `
-            INSERT INTO organizations (name, slug)
-            VALUES ($1, $2)
+            INSERT INTO organizations (id, name, slug)
+            VALUES ($1, $2, $3)
             ON CONFLICT (slug) DO NOTHING
             RETURNING id
             `,
-            [input.organization_name, slug],
+            [orgId, input.organization_name, slug],
           );
         }
 
@@ -183,11 +185,11 @@ export class AuthService {
 
         await client.query(
           `
-          INSERT INTO subscriptions (organization_id, plan, status, trial_ends_at)
-          VALUES ($1, 'starter', 'trialing', NOW() + INTERVAL '14 days')
+          INSERT INTO subscriptions (id, organization_id, plan, status, trial_ends_at)
+          VALUES ($1, $2, 'starter', 'trialing', NOW() + INTERVAL '14 days')
           ON CONFLICT (organization_id) DO NOTHING
           `,
-          [organizationId],
+          [crypto.randomUUID(), organizationId],
         );
       }
 
@@ -197,11 +199,11 @@ export class AuthService {
 
       const result = await client.query<UserRow>(
         `
-        INSERT INTO users (email, password_hash, full_name, role, is_active, updated_at, organization_id)
-        VALUES ($1, $2, $3, $4, TRUE, NOW(), $5)
+        INSERT INTO users (id, email, password_hash, full_name, role, is_active, updated_at, organization_id)
+        VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), $6)
         RETURNING id, email, password_hash, full_name, role, is_active, organization_id;
         `,
-        [email, passwordHash, input.full_name, role, organizationId],
+        [crypto.randomUUID(), email, passwordHash, input.full_name, role, organizationId],
       );
 
       if (!organizationName) {

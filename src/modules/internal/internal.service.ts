@@ -300,28 +300,30 @@ export class InternalService {
       }
 
       let slug = baseSlug;
+      let orgId = crypto.randomUUID();
       let orgResult = await client.query<{ id: string }>(
         `
-        INSERT INTO organizations (name, slug, country, onboarded_by)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO organizations (id, name, slug, country, onboarded_by)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (slug) DO NOTHING
         RETURNING id
         `,
-        [input.name, slug, input.country ?? null, input.onboarded_by ?? null],
+        [orgId, input.name, slug, input.country ?? null, input.onboarded_by ?? null],
       );
 
       let attempts = 0;
       while (orgResult.rowCount === 0 && attempts < 5) {
         attempts += 1;
         slug = `${baseSlug}-${Math.floor(Math.random() * 10000)}`;
+        orgId = crypto.randomUUID();
         orgResult = await client.query<{ id: string }>(
           `
-          INSERT INTO organizations (name, slug, country, onboarded_by)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO organizations (id, name, slug, country, onboarded_by)
+          VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (slug) DO NOTHING
           RETURNING id
           `,
-          [input.name, slug, input.country ?? null, input.onboarded_by ?? null],
+          [orgId, input.name, slug, input.country ?? null, input.onboarded_by ?? null],
         );
       }
 
@@ -332,10 +334,11 @@ export class InternalService {
       const organizationId = orgResult.rows[0].id;
 
       const status = trialDays > 0 ? "trialing" : "active";
+      const subscriptionId = crypto.randomUUID();
 
       await client.query(
         `
-        INSERT INTO subscriptions (organization_id, plan, status, trial_ends_at)
+        INSERT INTO subscriptions (id, organization_id, plan, status, trial_ends_at)
         VALUES (
           $1,
           $2,
@@ -344,16 +347,17 @@ export class InternalService {
         )
         ON CONFLICT (organization_id) DO NOTHING
         `,
-        [organizationId, plan, status, trialDays],
+        [subscriptionId, organizationId, plan, status, trialDays],
       );
 
       const passwordHash = await hashPassword(input.admin_password);
+      const adminUserId = crypto.randomUUID();
       await client.query(
         `
-        INSERT INTO users (email, password_hash, full_name, role, is_active, updated_at, organization_id)
-        VALUES ($1, $2, $3, 'admin', TRUE, NOW(), $4)
+        INSERT INTO users (id, email, password_hash, full_name, role, is_active, updated_at, organization_id)
+        VALUES ($1, $2, $3, $4, 'admin', TRUE, NOW(), $5)
         `,
-        [input.admin_email.toLowerCase(), passwordHash, input.admin_full_name, organizationId],
+        [adminUserId, input.admin_email.toLowerCase(), passwordHash, input.admin_full_name, organizationId],
       );
 
       return organizationId;
