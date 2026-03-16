@@ -20,7 +20,7 @@ export class TraceabilityController {
     const lotId = this.parseUuid(req.params.lotId, "lotId");
     const data = await traceabilityService.getLotTraceability(
       lotId,
-      req.auth.organizationId,
+      req.auth,
     );
     res.json(data);
   }
@@ -29,7 +29,7 @@ export class TraceabilityController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const data = await traceabilityService.getReferenceData(req.auth.organizationId);
+    const data = await traceabilityService.getReferenceData(req.auth);
     res.json(data);
   }
 }

@@ -24,7 +24,7 @@ export class ShipmentsController {
       throw new ApiError(401, "Authentication required");
     }
     const payload = shipmentCreateSchema.parse(req.body);
-    const shipment = await shipmentsService.createShipment(payload, req.auth.organizationId);
+    const shipment = await shipmentsService.createShipment(payload, req.auth);
     res.status(201).json(shipment);
   }
 
@@ -37,7 +37,7 @@ export class ShipmentsController {
     const shipment = await shipmentsService.updateStatus(
       shipmentId,
       payload,
-      req.auth.organizationId,
+      req.auth,
     );
     res.json(shipment);
   }
@@ -51,7 +51,7 @@ export class ShipmentsController {
     const docs = await shipmentsService.generateDocuments(
       shipmentId,
       payload,
-      req.auth.organizationId,
+      req.auth,
     );
     res.status(201).json(docs);
   }
@@ -68,7 +68,7 @@ export class ShipmentsController {
     const docs = await shipmentsService.listDocuments(
       shipmentId,
       query,
-      req.auth.organizationId,
+      req.auth,
     );
     res.json(docs);
   }
@@ -77,7 +77,7 @@ export class ShipmentsController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const data = await shipmentsService.getReferenceData(req.auth.organizationId);
+    const data = await shipmentsService.getReferenceData(req.auth);
     res.json(data);
   }
 }

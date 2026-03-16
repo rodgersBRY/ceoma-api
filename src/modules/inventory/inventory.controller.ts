@@ -23,7 +23,7 @@ export class InventoryController {
       ],
       defaultSortBy: "created_at",
     });
-    const lots = await inventoryService.listLots(query, req.auth.organizationId);
+    const lots = await inventoryService.listLots(query, req.auth);
     res.json(lots);
   }
 
@@ -32,7 +32,7 @@ export class InventoryController {
       throw new ApiError(401, "Authentication required");
     }
     const payload = stockAdjustmentSchema.parse(req.body);
-    const adjustment = await inventoryService.adjustStock(payload, req.auth.organizationId);
+    const adjustment = await inventoryService.adjustStock(payload, req.auth);
     res.status(201).json(adjustment);
   }
 
@@ -40,7 +40,7 @@ export class InventoryController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const dashboard = await inventoryService.getDashboard(req.auth.organizationId);
+    const dashboard = await inventoryService.getDashboard(req.auth);
     res.json(dashboard);
   }
 
@@ -48,7 +48,7 @@ export class InventoryController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const data = await inventoryService.getReferenceData(req.auth.organizationId);
+    const data = await inventoryService.getReferenceData(req.auth);
     res.json(data);
   }
 }

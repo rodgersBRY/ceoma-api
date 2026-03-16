@@ -13,16 +13,17 @@ import {
   escapeLikeQuery,
   toUuidFilter,
 } from "../../common/pagination.js";
-import { query, withTransaction } from "../../db/pool.js";
+import { withActor, withTransaction } from "../../db/pool.js";
+import { AuthContext } from "../../types/auth.js";
 import { notificationsService } from "../notifications/notifications.service.js";
 import { AllocationInput, ContractInput } from "./contracts.validation.js";
 
 export class ContractsService {
-  async createContract(input: ContractInput, organizationId: string): Promise<unknown> {
+  async createContract(input: ContractInput, actor: AuthContext): Promise<unknown> {
     const created = await withTransaction(async (client) => {
-      await ensureReference(client, "buyers", input.buyer_id, "Buyer", organizationId);
+      await ensureReference(client, "buyers", input.buyer_id, "Buyer", actor.organizationId);
       if (input.grade_id) {
-        await ensureReference(client, "grades", input.grade_id, "Grade", organizationId);
+        await ensureReference(client, "grades", input.grade_id, "Grade", actor.organizationId);
       }
 
       const contractId = crypto.randomUUID();
@@ -46,12 +47,12 @@ export class ContractsService {
           input.currency,
           input.shipment_window_start,
           input.shipment_window_end,
-          organizationId,
+          actor.organizationId,
         ],
       );
       const buyerResult = await client.query(
         "SELECT name FROM buyers WHERE id = $1 AND organization_id = $2",
-        [input.buyer_id, organizationId],
+        [input.buyer_id, actor.organizationId],
       );
       return {
         contract: result.rows[0],
@@ -60,7 +61,7 @@ export class ContractsService {
             ? String(buyerResult.rows[0].name)
             : String(input.buyer_id),
       };
-    });
+    }, actor);
 
     await notificationsService.notifyContractCreated({
       contractNumber: String(created.contract.contract_number),
@@ -68,17 +69,17 @@ export class ContractsService {
       quantityKg: toNumber(created.contract.quantity_kg),
       shipmentWindowStart: String(created.contract.shipment_window_start),
       shipmentWindowEnd: String(created.contract.shipment_window_end),
-      organizationId,
+      organizationId: actor.organizationId,
     });
 
     return created.contract;
   }
 
-  async allocateLot(contractId: string, input: AllocationInput, organizationId: string): Promise<unknown> {
+  async allocateLot(contractId: string, input: AllocationInput, actor: AuthContext): Promise<unknown> {
     const allocated = await withTransaction(async (client) => {
       const contractResult = await client.query(
         "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2 FOR UPDATE",
-        [contractId, organizationId],
+        [contractId, actor.organizationId],
       );
       if (contractResult.rowCount === 0) {
         throw new ApiError(404, `Contract ${contractId} not found`);
@@ -90,7 +91,7 @@ export class ContractsService {
 
       const lotResult = await client.query(
         "SELECT * FROM lots WHERE id = $1 AND organization_id = $2 FOR UPDATE",
-        [input.lot_id, organizationId],
+        [input.lot_id, actor.organizationId],
       );
       if (lotResult.rowCount === 0) {
         throw new ApiError(404, `Lot ${input.lot_id} not found`);
@@ -112,18 +113,18 @@ export class ContractsService {
         VALUES ($1, $2, $3, $4, 'allocated', $5)
         RETURNING *;
         `,
-        [allocationId, contractId, input.lot_id, input.allocated_kg, organizationId],
+        [allocationId, contractId, input.lot_id, input.allocated_kg, actor.organizationId],
       );
 
       const updatedContractResult = await client.query(
         "UPDATE contracts SET allocated_kg = allocated_kg + $1 WHERE id = $2 AND organization_id = $3 RETURNING contract_number, allocated_kg, quantity_kg",
-        [input.allocated_kg, contractId, organizationId],
+        [input.allocated_kg, contractId, actor.organizationId],
       );
       await client.query(
         "UPDATE lots SET weight_available_kg = weight_available_kg - $1 WHERE id = $2 AND organization_id = $3",
-        [input.allocated_kg, input.lot_id, organizationId],
+        [input.allocated_kg, input.lot_id, actor.organizationId],
       );
-      await refreshLotStatus(client, input.lot_id, organizationId);
+      await refreshLotStatus(client, input.lot_id, actor.organizationId);
       const updatedContract = updatedContractResult.rows[0];
       return {
         allocation: insertResult.rows[0],
@@ -131,25 +132,25 @@ export class ContractsService {
         allocatedKg: toNumber(updatedContract.allocated_kg),
         quantityKg: toNumber(updatedContract.quantity_kg),
       };
-    });
+    }, actor);
 
     if (allocated.allocatedKg + EPSILON >= allocated.quantityKg) {
       await notificationsService.notifyContractFullyAllocated({
         contractNumber: allocated.contractNumber,
         allocatedKg: allocated.allocatedKg,
-        organizationId,
+        organizationId: actor.organizationId,
       });
     }
 
     return allocated.allocation;
   }
 
-  async getDashboard(listQuery: ListQueryParams, organizationId: string): Promise<unknown> {
+  async getDashboard(listQuery: ListQueryParams, actor: AuthContext): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
     const buyerId = toUuidFilter(listQuery.filters, "buyer_id");
 
-    values.push(organizationId);
+    values.push(actor.organizationId);
     whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
@@ -174,12 +175,14 @@ export class ContractsService {
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM contracts ${whereSql}`,
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT *
       FROM contracts
@@ -234,27 +237,30 @@ export class ContractsService {
     };
   }
 
-  async getReferenceData(organizationId: string): Promise<unknown> {
+  async getReferenceData(actor: AuthContext): Promise<unknown> {
     const [buyersResult, gradesResult, contractsResult, lotsResult] = await Promise.all([
-      query(
+      withActor(
+        actor,
         `
         SELECT id, name, country
         FROM buyers
         WHERE organization_id = $1
         ORDER BY name ASC
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT id, code, description
         FROM grades
         WHERE organization_id = $1
         ORDER BY code ASC
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT id, contract_number, status, shipment_window_end
         FROM contracts
@@ -262,9 +268,10 @@ export class ContractsService {
         ORDER BY shipment_window_end ASC, id DESC
         LIMIT 500
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT
           l.id,
@@ -283,7 +290,7 @@ export class ContractsService {
         ORDER BY l.created_at DESC
         LIMIT 500
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
     ]);
 

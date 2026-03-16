@@ -6,7 +6,8 @@ import {
   escapeLikeQuery,
 } from "../../common/pagination.js";
 import { ApiError } from "../../common/errors/ApiError.js";
-import { query } from "../../db/pool.js";
+import { withActor } from "../../db/pool.js";
+import { AuthContext } from "../../types/auth.js";
 import {
   BagTypeInput,
   BuyerInput,
@@ -24,7 +25,7 @@ function throwReferenceConflict(error: unknown, entityName: string): never {
   if (pgError.code === "23503") {
     throw new ApiError(409, `${entityName} is in use and cannot be deleted`);
   }
-  
+
   throw error;
 }
 
@@ -32,15 +33,16 @@ export class MasterService {
   // SUPPLIER SERVICES
   async createSupplier(
     input: SupplierInput,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       INSERT INTO suppliers (id, name, supplier_type, country, organization_id)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.name, input.type, input.country ?? null, organizationId],
+      [crypto.randomUUID(), input.name, input.type, input.country ?? null, actor.organizationId],
     );
 
     return result.rows[0];
@@ -49,16 +51,17 @@ export class MasterService {
   async updateSupplier(
     id: string,
     input: Partial<SupplierInput>,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       UPDATE suppliers
       SET name = $1, supplier_type = $2, country = $3
       WHERE id = $4 AND organization_id = $5
       RETURNING *;
       `,
-      [input.name, input.type, input.country ?? null, id, organizationId],
+      [input.name, input.type, input.country ?? null, id, actor.organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -67,10 +70,11 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteSupplier(id: string, organizationId: string): Promise<unknown> {
-    const result = await query(
+  async deleteSupplier(id: string, actor: AuthContext): Promise<unknown> {
+    const result = await withActor(
+      actor,
       `DELETE FROM suppliers WHERE id = $1 AND organization_id = $2 RETURNING *`,
-      [id, organizationId],
+      [id, actor.organizationId],
     ).catch((error: unknown) => throwReferenceConflict(error, "Supplier"));
 
     if (result.rowCount === 0) {
@@ -81,12 +85,12 @@ export class MasterService {
 
   async listSuppliers(
     listQuery: ListQueryParams,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
 
-    values.push(organizationId);
+    values.push(actor.organizationId);
     whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
@@ -104,12 +108,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM suppliers ${whereSql}`,
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT * FROM suppliers
       ${whereSql}
@@ -128,15 +134,16 @@ export class MasterService {
   // BUYER SERVICES
   async createBuyer(
     input: BuyerInput,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       INSERT INTO buyers (id, name, country, organization_id)
       VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.name, input.country ?? null, organizationId],
+      [crypto.randomUUID(), input.name, input.country ?? null, actor.organizationId],
     );
     return result.rows[0];
   }
@@ -144,13 +151,14 @@ export class MasterService {
   async updateBuyer(
     id: string,
     input: Partial<BuyerInput>,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       UPDATE buyers SET name = $1, country = $2 WHERE id = $3 AND organization_id = $4 RETURNING *;
       `,
-      [input.name, input.country ?? null, id, organizationId],
+      [input.name, input.country ?? null, id, actor.organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -159,10 +167,11 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteBuyer(id: string, organizationId: string): Promise<unknown> {
-    const result = await query(
+  async deleteBuyer(id: string, actor: AuthContext): Promise<unknown> {
+    const result = await withActor(
+      actor,
       `DELETE FROM buyers WHERE id = $1 AND organization_id = $2 RETURNING *`,
-      [id, organizationId],
+      [id, actor.organizationId],
     ).catch((error: unknown) => throwReferenceConflict(error, "Buyer"));
 
     if (result.rowCount === 0) {
@@ -173,12 +182,12 @@ export class MasterService {
 
   async listBuyers(
     listQuery: ListQueryParams,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
 
-    values.push(organizationId);
+    values.push(actor.organizationId);
     whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
@@ -192,12 +201,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM buyers ${whereSql}`,
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT * FROM buyers
       ${whereSql}
@@ -216,15 +227,16 @@ export class MasterService {
   // WAREHOUSE SERVICES
   async createWarehouse(
     input: WarehouseInput,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       INSERT INTO warehouses (id, name, location, organization_id)
       VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.name, input.location ?? null, organizationId],
+      [crypto.randomUUID(), input.name, input.location ?? null, actor.organizationId],
     );
     return result.rows[0];
   }
@@ -232,13 +244,14 @@ export class MasterService {
   async updateWarehouse(
     id: string,
     input: Partial<WarehouseInput>,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       UPDATE warehouses SET name = $1, location = $2 WHERE id = $3 AND organization_id = $4 RETURNING *;
       `,
-      [input.name, input.location ?? null, id, organizationId],
+      [input.name, input.location ?? null, id, actor.organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -247,10 +260,11 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteWarehouse(id: string, organizationId: string): Promise<unknown> {
-    const result = await query(
+  async deleteWarehouse(id: string, actor: AuthContext): Promise<unknown> {
+    const result = await withActor(
+      actor,
       `DELETE FROM warehouses WHERE id = $1 AND organization_id = $2 RETURNING *`,
-      [id, organizationId],
+      [id, actor.organizationId],
     ).catch((error: unknown) => throwReferenceConflict(error, "Warehouse"));
 
     if (result.rowCount === 0) {
@@ -261,12 +275,12 @@ export class MasterService {
 
   async listWarehouses(
     listQuery: ListQueryParams,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
 
-    values.push(organizationId);
+    values.push(actor.organizationId);
     whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
@@ -280,12 +294,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM warehouses ${whereSql}`,
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT * FROM warehouses
       ${whereSql}
@@ -304,15 +320,16 @@ export class MasterService {
   // GRADE SERVICES
   async createGrade(
     input: GradeInput,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       INSERT INTO grades (id, code, description, organization_id)
       VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.code, input.description ?? null, organizationId],
+      [crypto.randomUUID(), input.code, input.description ?? null, actor.organizationId],
     );
     return result.rows[0];
   }
@@ -320,13 +337,14 @@ export class MasterService {
   async updateGrade(
     id: string,
     input: Partial<GradeInput>,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       UPDATE grades SET code = $1, description = $2 WHERE id = $3 AND organization_id = $4 RETURNING *;
       `,
-      [input.code, input.description ?? null, id, organizationId],
+      [input.code, input.description ?? null, id, actor.organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -335,10 +353,11 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteGrade(id: string, organizationId: string): Promise<unknown> {
-    const result = await query(
+  async deleteGrade(id: string, actor: AuthContext): Promise<unknown> {
+    const result = await withActor(
+      actor,
       `DELETE FROM grades WHERE id = $1 AND organization_id = $2 RETURNING *`,
-      [id, organizationId],
+      [id, actor.organizationId],
     ).catch((error: unknown) => throwReferenceConflict(error, "Grade"));
 
     if (result.rowCount === 0) {
@@ -349,12 +368,12 @@ export class MasterService {
 
   async listGrades(
     listQuery: ListQueryParams,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
 
-    values.push(organizationId);
+    values.push(actor.organizationId);
     whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
@@ -370,12 +389,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM grades ${whereSql}`,
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT * FROM grades
       ${whereSql}
@@ -394,15 +415,16 @@ export class MasterService {
   // BAG TYPE SERVICES
   async createBagType(
     input: BagTypeInput,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       INSERT INTO bag_types (id, name, weight_kg, organization_id)
       VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.name, input.weight_kg, organizationId],
+      [crypto.randomUUID(), input.name, input.weight_kg, actor.organizationId],
     );
     return result.rows[0];
   }
@@ -410,13 +432,14 @@ export class MasterService {
   async updateBagType(
     id: string,
     input: Partial<BagTypeInput>,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       UPDATE bag_types SET name = $1, weight_kg = $2 WHERE id = $3 AND organization_id = $4 RETURNING *;
       `,
-      [input.name, input.weight_kg ?? null, id, organizationId],
+      [input.name, input.weight_kg ?? null, id, actor.organizationId],
     );
 
     if (result.rowCount === 0) {
@@ -425,10 +448,11 @@ export class MasterService {
     return result.rows[0];
   }
 
-  async deleteBagType(id: string, organizationId: string): Promise<unknown> {
-    const result = await query(
+  async deleteBagType(id: string, actor: AuthContext): Promise<unknown> {
+    const result = await withActor(
+      actor,
       `DELETE FROM bag_types WHERE id = $1 AND organization_id = $2 RETURNING *`,
-      [id, organizationId],
+      [id, actor.organizationId],
     ).catch((error: unknown) => throwReferenceConflict(error, "Bag type"));
 
     if (result.rowCount === 0) {
@@ -439,12 +463,12 @@ export class MasterService {
 
   async listBagTypes(
     listQuery: ListQueryParams,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
 
-    values.push(organizationId);
+    values.push(actor.organizationId);
     whereClauses.push(`organization_id = $${values.length}`);
 
     if (listQuery.search) {
@@ -454,12 +478,14 @@ export class MasterService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM bag_types ${whereSql}`,
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT * FROM bag_types
       ${whereSql}

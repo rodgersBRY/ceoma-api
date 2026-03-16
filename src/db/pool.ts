@@ -107,6 +107,33 @@ export async function withActor<T extends QueryResultRow = QueryResultRow>(
   );
 }
 
+/**
+ * Runs a function with only app.org_id set as RLS context.
+ * Use this for internal/system operations (e.g. notifications) that have
+ * an org scope but no user actor.
+ */
+export async function withOrgContext<T>(
+  organizationId: string,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`SELECT set_config('app.org_id', $1, true)`, [organizationId]);
+
+    const result = await fn(client);
+
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function setRlsContext(client: PoolClient, actor: AuthContext): Promise<void> {
   await client.query(
     `SELECT

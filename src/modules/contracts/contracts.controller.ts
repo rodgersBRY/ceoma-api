@@ -20,7 +20,7 @@ export class ContractsController {
       throw new ApiError(401, "Authentication required");
     }
     const payload = contractSchema.parse(req.body);
-    const contract = await contractsService.createContract(payload, req.auth.organizationId);
+    const contract = await contractsService.createContract(payload, req.auth);
     res.status(201).json(contract);
   }
 
@@ -33,7 +33,7 @@ export class ContractsController {
     const allocation = await contractsService.allocateLot(
       contractId,
       payload,
-      req.auth.organizationId,
+      req.auth,
     );
     res.status(201).json(allocation);
   }
@@ -56,7 +56,7 @@ export class ContractsController {
       ],
       defaultSortBy: "created_at",
     });
-    const dashboard = await contractsService.getDashboard(query, req.auth.organizationId);
+    const dashboard = await contractsService.getDashboard(query, req.auth);
     res.json(dashboard);
   }
 
@@ -64,7 +64,7 @@ export class ContractsController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const data = await contractsService.getReferenceData(req.auth.organizationId);
+    const data = await contractsService.getReferenceData(req.auth);
     res.json(data);
   }
 }

@@ -2,17 +2,18 @@ import crypto from "node:crypto";
 
 import { ApiError } from "../../common/errors/ApiError.js";
 import { ensureReference, toNumber } from "../../common/dbHelpers.js";
-import { query, withTransaction } from "../../db/pool.js";
+import { withActor, withTransaction } from "../../db/pool.js";
+import { AuthContext } from "../../types/auth.js";
 import { CostEntryInput } from "./finance.validation.js";
 
 export class FinanceService {
-  async createCostEntry(input: CostEntryInput, organizationId: string): Promise<unknown> {
+  async createCostEntry(input: CostEntryInput, actor: AuthContext): Promise<unknown> {
     return withTransaction(async (client) => {
       if (input.lot_id) {
-        await ensureReference(client, "lots", input.lot_id, "Lot", organizationId);
+        await ensureReference(client, "lots", input.lot_id, "Lot", actor.organizationId);
       }
       if (input.shipment_id) {
-        await ensureReference(client, "shipments", input.shipment_id, "Shipment", organizationId);
+        await ensureReference(client, "shipments", input.shipment_id, "Shipment", actor.organizationId);
       }
       const costEntryId = crypto.randomUUID();
       const result = await client.query(
@@ -29,24 +30,26 @@ export class FinanceService {
           input.amount,
           input.currency,
           input.notes ?? null,
-          organizationId,
+          actor.organizationId,
         ],
       );
       return result.rows[0];
-    });
+    }, actor);
   }
 
-  async getContractProfitability(contractId: string, organizationId: string): Promise<unknown> {
-    const contractResult = await query(
+  async getContractProfitability(contractId: string, actor: AuthContext): Promise<unknown> {
+    const contractResult = await withActor(
+      actor,
       "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2",
-      [contractId, organizationId],
+      [contractId, actor.organizationId],
     );
     if (contractResult.rowCount === 0) {
       throw new ApiError(404, `Contract ${contractId} not found`);
     }
     const contract = contractResult.rows[0];
 
-    const allocationResult = await query(
+    const allocationResult = await withActor(
+      actor,
       `
       SELECT
         a.allocated_kg,
@@ -59,7 +62,7 @@ export class FinanceService {
       JOIN lots l ON l.id = a.lot_id
       WHERE a.contract_id = $1 AND a.status = 'shipped' AND a.organization_id = $2;
       `,
-      [contractId, organizationId],
+      [contractId, actor.organizationId],
     );
 
     let shippedKg = 0;
@@ -82,9 +85,10 @@ export class FinanceService {
 
     let shipmentCost = 0;
     if (shipmentIds.size > 0) {
-      const shipmentCostResult = await query(
+      const shipmentCostResult = await withActor(
+        actor,
         "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE shipment_id = ANY($1::uuid[]) AND organization_id = $2",
-        [Array.from(shipmentIds), organizationId],
+        [Array.from(shipmentIds), actor.organizationId],
       );
       shipmentCost = toNumber(shipmentCostResult.rows[0].total);
     }
@@ -107,9 +111,10 @@ export class FinanceService {
     };
   }
 
-  async getReferenceData(organizationId: string): Promise<unknown> {
+  async getReferenceData(actor: AuthContext): Promise<unknown> {
     const [contractsResult, lotsResult, shipmentsResult] = await Promise.all([
-      query(
+      withActor(
+        actor,
         `
         SELECT id, contract_number, status
         FROM contracts
@@ -117,9 +122,10 @@ export class FinanceService {
         ORDER BY created_at DESC, id DESC
         LIMIT 500
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT id, lot_code, source, status
         FROM lots
@@ -127,9 +133,10 @@ export class FinanceService {
         ORDER BY created_at DESC, id DESC
         LIMIT 1000
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT id, shipment_number, status
         FROM shipments
@@ -137,7 +144,7 @@ export class FinanceService {
         ORDER BY created_at DESC, id DESC
         LIMIT 500
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
     ]);
 

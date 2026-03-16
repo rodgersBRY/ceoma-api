@@ -2,7 +2,7 @@ import emailjs from "@emailjs/nodejs";
 
 import { logger } from "../../common/logger.js";
 import { env } from "../../config/env.js";
-import { query } from "../../db/pool.js";
+import { withOrgContext } from "../../db/pool.js";
 import {
   ApiKeyExpiryAlertPayload,
   ContractCreatedNotificationPayload,
@@ -67,15 +67,19 @@ export class NotificationService {
       return [];
     }
 
-    const result = await query<{ email: string }>(
-      `
-      SELECT email
-      FROM users
-      WHERE is_active = TRUE
-        AND role::text = ANY($1::text[])
-        AND organization_id = $2
-      `,
-      [roles, organizationId],
+    const result = await withOrgContext<{ email: string }>(
+      organizationId,
+      (client) =>
+        client.query<{ email: string }>(
+          `
+          SELECT email
+          FROM users
+          WHERE is_active = TRUE
+            AND role::text = ANY($1::text[])
+            AND organization_id = $2
+          `,
+          [roles, organizationId],
+        ),
     );
 
     return result.rows

@@ -15,7 +15,7 @@ export class ProcurementController {
       throw new ApiError(401, "Authentication required");
     }
     const payload = auctionLotSchema.parse(req.body);
-    const lot = await procurementService.createAuctionLot(payload, req.auth.organizationId);
+    const lot = await procurementService.createAuctionLot(payload, req.auth);
     res.status(201).json(lot);
   }
 
@@ -26,7 +26,7 @@ export class ProcurementController {
     const payload = directAgreementSchema.parse(req.body);
     const agreement = await procurementService.createDirectAgreement(
       payload,
-      req.auth.organizationId,
+      req.auth,
     );
     res.status(201).json(agreement);
   }
@@ -41,7 +41,7 @@ export class ProcurementController {
     });
     const agreements = await procurementService.listDirectAgreements(
       query,
-      req.auth.organizationId,
+      req.auth,
     );
     res.json(agreements);
   }
@@ -68,7 +68,7 @@ export class ProcurementController {
       ],
       defaultSortBy: "created_at",
     });
-    const lots = await procurementService.listAuctionLots(query, req.auth.organizationId);
+    const lots = await procurementService.listAuctionLots(query, req.auth);
     res.json(lots);
   }
 
@@ -77,7 +77,7 @@ export class ProcurementController {
       throw new ApiError(401, "Authentication required");
     }
     const payload = directDeliverySchema.parse(req.body);
-    const lot = await procurementService.createDirectDelivery(payload, req.auth.organizationId);
+    const lot = await procurementService.createDirectDelivery(payload, req.auth);
     res.status(201).json(lot);
   }
 
@@ -107,7 +107,7 @@ export class ProcurementController {
     });
     const deliveries = await procurementService.listDirectDeliveries(
       query,
-      req.auth.organizationId,
+      req.auth,
     );
     res.json(deliveries);
   }
@@ -116,7 +116,7 @@ export class ProcurementController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const data = await procurementService.getReferenceData(req.auth.organizationId);
+    const data = await procurementService.getReferenceData(req.auth);
     res.json(data);
   }
 }

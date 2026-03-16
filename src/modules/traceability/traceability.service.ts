@@ -1,11 +1,13 @@
 import { ApiError } from "../../common/errors/ApiError.js";
-import { query } from "../../db/pool.js";
+import { withActor } from "../../db/pool.js";
+import { AuthContext } from "../../types/auth.js";
 
 export class TraceabilityService {
-  async getLotTraceability(lotId: string, organizationId: string): Promise<unknown> {
-    const lotResult = await query(
+  async getLotTraceability(lotId: string, actor: AuthContext): Promise<unknown> {
+    const lotResult = await withActor(
+      actor,
       "SELECT * FROM lots WHERE id = $1 AND organization_id = $2",
-      [lotId, organizationId],
+      [lotId, actor.organizationId],
     );
     if (lotResult.rowCount === 0) {
       throw new ApiError(404, `Lot ${lotId} not found`);
@@ -14,9 +16,10 @@ export class TraceabilityService {
 
     let procurement: Record<string, unknown> = {};
     if (String(lot.source) === "auction") {
-      const auctionResult = await query(
+      const auctionResult = await withActor(
+        actor,
         "SELECT * FROM auction_procurements WHERE lot_id = $1 AND organization_id = $2",
-        [lotId, organizationId],
+        [lotId, actor.organizationId],
       );
       const auction = auctionResult.rows[0];
       procurement = {
@@ -26,15 +29,17 @@ export class TraceabilityService {
         catalog_document_path: auction?.catalog_document_path ?? null,
       };
     } else {
-      const deliveryResult = await query(
+      const deliveryResult = await withActor(
+        actor,
         "SELECT * FROM direct_deliveries WHERE lot_id = $1 AND organization_id = $2",
-        [lotId, organizationId],
+        [lotId, actor.organizationId],
       );
       const delivery = deliveryResult.rows[0];
       const agreementResult = delivery
-        ? await query(
+        ? await withActor(
+            actor,
             "SELECT * FROM direct_agreements WHERE id = $1 AND organization_id = $2",
-            [delivery.agreement_id, organizationId],
+            [delivery.agreement_id, actor.organizationId],
           )
         : { rows: [] };
       const agreement = agreementResult.rows[0];
@@ -51,9 +56,10 @@ export class TraceabilityService {
       };
     }
 
-    const allocationsResult = await query(
+    const allocationsResult = await withActor(
+      actor,
       "SELECT * FROM allocations WHERE lot_id = $1 AND organization_id = $2 ORDER BY id",
-      [lotId, organizationId],
+      [lotId, actor.organizationId],
     );
     const shipmentIds = Array.from(
       new Set(
@@ -66,16 +72,18 @@ export class TraceabilityService {
     );
     const shipmentsResult =
       shipmentIds.length > 0
-        ? await query(
+        ? await withActor(
+            actor,
             "SELECT * FROM shipments WHERE id = ANY($1::uuid[]) AND organization_id = $2 ORDER BY id",
-            [shipmentIds, organizationId],
+            [shipmentIds, actor.organizationId],
           )
         : { rows: [] };
     const docsResult =
       shipmentIds.length > 0
-        ? await query(
+        ? await withActor(
+            actor,
             "SELECT * FROM shipment_documents WHERE shipment_id = ANY($1::uuid[]) AND organization_id = $2 ORDER BY id",
-            [shipmentIds, organizationId],
+            [shipmentIds, actor.organizationId],
           )
         : { rows: [] };
 
@@ -88,8 +96,9 @@ export class TraceabilityService {
     };
   }
 
-  async getReferenceData(organizationId: string): Promise<unknown> {
-    const lotsResult = await query(
+  async getReferenceData(actor: AuthContext): Promise<unknown> {
+    const lotsResult = await withActor(
+      actor,
       `
       SELECT id, lot_code, source, status, crop_year
       FROM lots
@@ -97,7 +106,7 @@ export class TraceabilityService {
       ORDER BY created_at DESC, id DESC
       LIMIT 1000
       `,
-      [organizationId],
+      [actor.organizationId],
     );
 
     return {

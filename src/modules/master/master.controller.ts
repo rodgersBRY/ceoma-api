@@ -27,7 +27,7 @@ export class MasterController {
 
     const payload = supplierSchema.parse(req.body);
 
-    const created = await masterService.createSupplier(payload, req.auth.organizationId);
+    const created = await masterService.createSupplier(payload, req.auth);
 
     res.status(201).json(created);
   }
@@ -43,7 +43,7 @@ export class MasterController {
     const updated = await masterService.updateSupplier(
       supplierId,
       payload,
-      req.auth.organizationId,
+      req.auth,
     );
 
     res.status(200).json(updated);
@@ -56,7 +56,7 @@ export class MasterController {
 
     const supplierId = parseEntityId(req.params.id, "Supplier");
     
-    const deleted = await masterService.deleteSupplier(supplierId, req.auth.organizationId);
+    const deleted = await masterService.deleteSupplier(supplierId, req.auth);
     
     res.status(200).json(deleted);
   }
@@ -71,7 +71,7 @@ export class MasterController {
       defaultSortBy: "created_at",
     });
 
-    const rows = await masterService.listSuppliers(query, req.auth.organizationId);
+    const rows = await masterService.listSuppliers(query, req.auth);
 
     res.json(rows);
   }
@@ -83,7 +83,7 @@ export class MasterController {
 
     const payload = buyerSchema.parse(req.body);
 
-    const created = await masterService.createBuyer(payload, req.auth.organizationId);
+    const created = await masterService.createBuyer(payload, req.auth);
 
     res.status(201).json(created);
   }
@@ -96,7 +96,7 @@ export class MasterController {
     const payload = buyerSchema.parse(req.body);
     const buyerId = parseEntityId(req.params.id, "Buyer");
 
-    const updated = await masterService.updateBuyer(buyerId, payload, req.auth.organizationId);
+    const updated = await masterService.updateBuyer(buyerId, payload, req.auth);
 
     res.status(200).json(updated);
   }
@@ -108,7 +108,7 @@ export class MasterController {
 
     const buyerId = parseEntityId(req.params.id, "Buyer");
 
-    const deleted = await masterService.deleteBuyer(buyerId, req.auth.organizationId);
+    const deleted = await masterService.deleteBuyer(buyerId, req.auth);
 
     res.status(200).json(deleted);
   }
@@ -123,7 +123,7 @@ export class MasterController {
       defaultSortBy: "created_at",
     });
 
-    const rows = await masterService.listBuyers(query, req.auth.organizationId);
+    const rows = await masterService.listBuyers(query, req.auth);
 
     res.json(rows);
   }
@@ -135,7 +135,7 @@ export class MasterController {
 
     const payload = warehouseSchema.parse(req.body);
 
-    const created = await masterService.createWarehouse(payload, req.auth.organizationId);
+    const created = await masterService.createWarehouse(payload, req.auth);
 
     res.status(201).json(created);
   }
@@ -151,7 +151,7 @@ export class MasterController {
     const updated = await masterService.updateWarehouse(
       warehouseId,
       payload,
-      req.auth.organizationId,
+      req.auth,
     );
 
     res.status(200).json(updated);
@@ -163,7 +163,7 @@ export class MasterController {
     }
     const warehouseId = parseEntityId(req.params.id, "Warehouse");
 
-    const deleted = await masterService.deleteWarehouse(warehouseId, req.auth.organizationId);
+    const deleted = await masterService.deleteWarehouse(warehouseId, req.auth);
 
     res.status(200).json(deleted);
   }
@@ -178,7 +178,7 @@ export class MasterController {
       defaultSortBy: "created_at",
     });
 
-    const rows = await masterService.listWarehouses(query, req.auth.organizationId);
+    const rows = await masterService.listWarehouses(query, req.auth);
     
     res.json(rows);
   }
@@ -190,7 +190,7 @@ export class MasterController {
 
     const payload = gradeSchema.parse(req.body);
     
-    const created = await masterService.createGrade(payload, req.auth.organizationId);
+    const created = await masterService.createGrade(payload, req.auth);
     
     res.status(201).json(created);
   }
@@ -203,7 +203,7 @@ export class MasterController {
     const payload = gradeSchema.parse(req.body);
     const gradeId = parseEntityId(req.params.id, "Grade");
 
-    const updated = await masterService.updateGrade(gradeId, payload, req.auth.organizationId);
+    const updated = await masterService.updateGrade(gradeId, payload, req.auth);
 
     res.status(200).json(updated);
   }
@@ -214,7 +214,7 @@ export class MasterController {
 
     const gradeId = parseEntityId(req.params.id, "Grade");
 
-    const deleted = await masterService.deleteGrade(gradeId, req.auth.organizationId);
+    const deleted = await masterService.deleteGrade(gradeId, req.auth);
 
     res.status(200).json(deleted);
   }
@@ -229,7 +229,7 @@ export class MasterController {
       defaultSortBy: "created_at",
     });
 
-    const rows = await masterService.listGrades(query, req.auth.organizationId);
+    const rows = await masterService.listGrades(query, req.auth);
 
     res.json(rows);
   }
@@ -241,7 +241,7 @@ export class MasterController {
 
     const payload = bagTypeSchema.parse(req.body);
 
-    const created = await masterService.createBagType(payload, req.auth.organizationId);
+    const created = await masterService.createBagType(payload, req.auth);
 
     res.status(201).json(created);
   }
@@ -256,7 +256,7 @@ export class MasterController {
     const updated = await masterService.updateBagType(
       bagTypeId,
       payload,
-      req.auth.organizationId,
+      req.auth,
     );
 
     res.status(200).json(updated);
@@ -269,7 +269,7 @@ export class MasterController {
 
     const bagTypeId = parseEntityId(req.params.id, "Bag type");
 
-    const deleted = await masterService.deleteBagType(bagTypeId, req.auth.organizationId);
+    const deleted = await masterService.deleteBagType(bagTypeId, req.auth);
 
     res.status(200).json(deleted);
   }
@@ -284,7 +284,7 @@ export class MasterController {
       defaultSortBy: "created_at",
     });
 
-    const rows = await masterService.listBagTypes(query, req.auth.organizationId);
+    const rows = await masterService.listBagTypes(query, req.auth);
     
     res.json(rows);
   }

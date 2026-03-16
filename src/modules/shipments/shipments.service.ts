@@ -12,7 +12,8 @@ import {
   ListQueryParams,
   buildPaginatedResult,
 } from "../../common/pagination.js";
-import { query, withTransaction } from "../../db/pool.js";
+import { withActor, withTransaction } from "../../db/pool.js";
+import { AuthContext } from "../../types/auth.js";
 import {
   DocsGenerateInput,
   ShipmentCreateInput,
@@ -21,11 +22,11 @@ import {
 import { notificationsService } from "../notifications/notifications.service.js";
 
 export class ShipmentsService {
-  async createShipment(input: ShipmentCreateInput, organizationId: string): Promise<unknown> {
+  async createShipment(input: ShipmentCreateInput, actor: AuthContext): Promise<unknown> {
     const created = await withTransaction(async (client) => {
       const contractResult = await client.query(
         "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2 FOR UPDATE",
-        [input.contract_id, organizationId],
+        [input.contract_id, actor.organizationId],
       );
       if (contractResult.rowCount === 0) {
         throw new ApiError(404, `Contract ${input.contract_id} not found`);
@@ -48,7 +49,7 @@ export class ShipmentsService {
           input.container_number ?? null,
           input.seal_number ?? null,
           input.planned_departure ?? null,
-          organizationId,
+          actor.organizationId,
         ],
       );
       const createdShipment = shipmentResult.rows[0];
@@ -60,7 +61,7 @@ export class ShipmentsService {
         WHERE id = ANY($1::uuid[]) AND organization_id = $2
         FOR UPDATE;
         `,
-        [uniqueAllocationIds, organizationId],
+        [uniqueAllocationIds, actor.organizationId],
       );
       if (allocationResult.rowCount !== uniqueAllocationIds.length) {
         throw new ApiError(404, "One or more allocations do not exist");
@@ -91,7 +92,7 @@ export class ShipmentsService {
         SET status = 'shipped', shipment_id = $1
         WHERE id = ANY($2::uuid[]) AND organization_id = $3;
         `,
-        [createdShipment.id, uniqueAllocationIds, organizationId],
+        [createdShipment.id, uniqueAllocationIds, actor.organizationId],
       );
 
       const contractStatus = nextContractStatus(
@@ -101,7 +102,7 @@ export class ShipmentsService {
       );
       await client.query(
         "UPDATE contracts SET shipped_kg = $1, status = $2 WHERE id = $3 AND organization_id = $4",
-        [newShipped, contractStatus, input.contract_id, organizationId],
+        [newShipped, contractStatus, input.contract_id, actor.organizationId],
       );
 
       const lotsForSnapshotResult = await client.query(
@@ -119,7 +120,7 @@ export class ShipmentsService {
         WHERE a.id = ANY($1::uuid[]) AND a.organization_id = $2
         ORDER BY a.id;
         `,
-        [uniqueAllocationIds, organizationId],
+        [uniqueAllocationIds, actor.organizationId],
       );
 
       const touchedLots = new Set<string>();
@@ -127,7 +128,7 @@ export class ShipmentsService {
         const lotId = String(row.lot_id);
         if (!touchedLots.has(lotId)) {
           touchedLots.add(lotId);
-          await refreshLotStatus(client, lotId, organizationId);
+          await refreshLotStatus(client, lotId, actor.organizationId);
         }
       }
 
@@ -149,12 +150,12 @@ export class ShipmentsService {
 
       await client.query(
         "UPDATE shipments SET traceability_snapshot = $1::jsonb WHERE id = $2 AND organization_id = $3",
-        [JSON.stringify(traceabilitySnapshot), createdShipment.id, organizationId],
+        [JSON.stringify(traceabilitySnapshot), createdShipment.id, actor.organizationId],
       );
 
       const finalShipment = await client.query(
         "SELECT * FROM shipments WHERE id = $1 AND organization_id = $2",
-        [createdShipment.id, organizationId],
+        [createdShipment.id, actor.organizationId],
       );
       const lotCodes = Array.from(
         new Set(
@@ -169,13 +170,13 @@ export class ShipmentsService {
         contractNumber: String(contract.contract_number),
         lotCodes,
       };
-    });
+    }, actor);
 
     await notificationsService.notifyShipmentCreated({
       shipmentNumber: String(created.shipment.shipment_number),
       contractNumber: created.contractNumber,
       lotCodes: created.lotCodes,
-      organizationId,
+      organizationId: actor.organizationId,
     });
 
     return created.shipment;
@@ -184,12 +185,12 @@ export class ShipmentsService {
   async updateStatus(
     shipmentId: string,
     input: ShipmentStatusInput,
-    organizationId: string,
+    actor: AuthContext,
   ): Promise<unknown> {
     const updated = await withTransaction(async (client) => {
       const shipmentResult = await client.query(
         "SELECT * FROM shipments WHERE id = $1 AND organization_id = $2 FOR UPDATE",
-        [shipmentId, organizationId],
+        [shipmentId, actor.organizationId],
       );
       if (shipmentResult.rowCount === 0) {
         throw new ApiError(404, `Shipment ${shipmentId} not found`);
@@ -208,13 +209,13 @@ export class ShipmentsService {
         WHERE id = $3 AND organization_id = $4
         RETURNING *;
         `,
-        [input.status, input.actual_departure ?? null, shipmentId, organizationId],
+        [input.status, input.actual_departure ?? null, shipmentId, actor.organizationId],
       );
       const updatedShipment = result.rows[0];
 
       const contractResult = await client.query(
         "SELECT contract_number FROM contracts WHERE id = $1 AND organization_id = $2",
-        [updatedShipment.contract_id, organizationId],
+        [updatedShipment.contract_id, actor.organizationId],
       );
 
       return {
@@ -224,7 +225,7 @@ export class ShipmentsService {
             ? String(contractResult.rows[0].contract_number)
             : String(updatedShipment.contract_id),
       };
-    });
+    }, actor);
 
     await notificationsService.notifyShipmentStatusChanged({
       shipmentNumber: String(updated.shipment.shipment_number),
@@ -233,17 +234,17 @@ export class ShipmentsService {
       actualDeparture: updated.shipment.actual_departure
         ? String(updated.shipment.actual_departure)
         : null,
-      organizationId,
+      organizationId: actor.organizationId,
     });
 
     return updated.shipment;
   }
 
-  async generateDocuments(shipmentId: string, input: DocsGenerateInput, organizationId: string): Promise<unknown[]> {
+  async generateDocuments(shipmentId: string, input: DocsGenerateInput, actor: AuthContext): Promise<unknown[]> {
     const generated = await withTransaction(async (client) => {
       const shipmentResult = await client.query(
         "SELECT * FROM shipments WHERE id = $1 AND organization_id = $2",
-        [shipmentId, organizationId],
+        [shipmentId, actor.organizationId],
       );
       if (shipmentResult.rowCount === 0) {
         throw new ApiError(404, `Shipment ${shipmentId} not found`);
@@ -252,18 +253,18 @@ export class ShipmentsService {
 
       const contractResult = await client.query(
         "SELECT * FROM contracts WHERE id = $1 AND organization_id = $2",
-        [shipment.contract_id, organizationId],
+        [shipment.contract_id, actor.organizationId],
       );
       const contract = contractResult.rows[0];
       const buyerResult = await client.query(
         "SELECT * FROM buyers WHERE id = $1 AND organization_id = $2",
-        [contract.buyer_id, organizationId],
+        [contract.buyer_id, actor.organizationId],
       );
       const buyer = buyerResult.rows[0];
 
       const allocationResult = await client.query(
         "SELECT * FROM allocations WHERE shipment_id = $1 AND organization_id = $2 ORDER BY id",
-        [shipmentId, organizationId],
+        [shipmentId, actor.organizationId],
       );
       if (allocationResult.rowCount === 0) {
         throw new ApiError(409, "No shipped allocations found for this shipment");
@@ -312,7 +313,7 @@ export class ShipmentsService {
             JOIN lots l ON l.id = a.lot_id
             WHERE a.shipment_id = $1 AND a.organization_id = $2;
             `,
-            [shipmentId, organizationId],
+            [shipmentId, actor.organizationId],
           );
           let totalLotCost = 0;
           for (const row of lotCostResult.rows) {
@@ -328,7 +329,7 @@ export class ShipmentsService {
 
           const shipmentCostResult = await client.query(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM cost_entries WHERE shipment_id = $1 AND organization_id = $2",
-            [shipmentId, organizationId],
+            [shipmentId, actor.organizationId],
           );
           const shipmentCost = toNumber(shipmentCostResult.rows[0].total);
           payload = {
@@ -346,7 +347,7 @@ export class ShipmentsService {
           VALUES ($1, $2, $3, $4::jsonb, $5)
           RETURNING *;
           `,
-          [documentId, shipmentId, docType, JSON.stringify(payload), organizationId],
+          [documentId, shipmentId, docType, JSON.stringify(payload), actor.organizationId],
         );
         createdDocs.push(insertResult.rows[0]);
       }
@@ -357,22 +358,22 @@ export class ShipmentsService {
         buyerName: String(buyer.name),
         docTypes: input.doc_types,
       };
-    });
+    }, actor);
 
     await notificationsService.notifyDocumentsReady({
       shipmentNumber: generated.shipmentNumber,
       contractNumber: generated.contractNumber,
       buyerName: generated.buyerName,
       docTypes: generated.docTypes,
-      organizationId,
+      organizationId: actor.organizationId,
     });
 
     return generated.documents;
   }
 
-  async listDocuments(shipmentId: string, listQuery: ListQueryParams, organizationId: string): Promise<unknown> {
+  async listDocuments(shipmentId: string, listQuery: ListQueryParams, actor: AuthContext): Promise<unknown> {
     const whereClauses = ["shipment_id = $1", "organization_id = $2"];
-    const values: unknown[] = [shipmentId, organizationId];
+    const values: unknown[] = [shipmentId, actor.organizationId];
 
     if (listQuery.filters.document_type) {
       values.push(listQuery.filters.document_type);
@@ -380,13 +381,15 @@ export class ShipmentsService {
     }
 
     const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM shipment_documents ${whereSql}`,
       values,
     );
 
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT * FROM shipment_documents
       ${whereSql}
@@ -398,9 +401,10 @@ export class ShipmentsService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async getReferenceData(organizationId: string): Promise<unknown> {
+  async getReferenceData(actor: AuthContext): Promise<unknown> {
     const [contractsResult, allocationsResult, shipmentsResult] = await Promise.all([
-      query(
+      withActor(
+        actor,
         `
         SELECT id, contract_number, status, quantity_kg, allocated_kg, shipped_kg
         FROM contracts
@@ -408,9 +412,10 @@ export class ShipmentsService {
         ORDER BY created_at DESC, id DESC
         LIMIT 500
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT
           a.id,
@@ -429,9 +434,10 @@ export class ShipmentsService {
         ORDER BY a.id DESC
         LIMIT 1000
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT
           s.id,
@@ -445,7 +451,7 @@ export class ShipmentsService {
         ORDER BY s.created_at DESC, s.id DESC
         LIMIT 500
         `,
-        [organizationId],
+        [actor.organizationId],
       ),
     ]);
 

@@ -19,7 +19,7 @@ export class FinanceController {
       throw new ApiError(401, "Authentication required");
     }
     const payload = costEntrySchema.parse(req.body);
-    const costEntry = await financeService.createCostEntry(payload, req.auth.organizationId);
+    const costEntry = await financeService.createCostEntry(payload, req.auth);
     res.status(201).json(costEntry);
   }
 
@@ -30,7 +30,7 @@ export class FinanceController {
     const contractId = this.parseUuid(req.params.contractId, "contractId");
     const data = await financeService.getContractProfitability(
       contractId,
-      req.auth.organizationId,
+      req.auth,
     );
     res.json(data);
   }
@@ -39,7 +39,7 @@ export class FinanceController {
     if (!req.auth) {
       throw new ApiError(401, "Authentication required");
     }
-    const data = await financeService.getReferenceData(req.auth.organizationId);
+    const data = await financeService.getReferenceData(req.auth);
     res.json(data);
   }
 }

@@ -10,7 +10,7 @@ import {
   toBooleanFilter,
   toUuidFilter,
 } from "../../common/pagination.js";
-import { query, withTransaction } from "../../db/pool.js";
+import { query, withActor, withTransaction } from "../../db/pool.js";
 import { AuthContext, UserRole } from "../../types/auth.js";
 import {
   hashPassword,
@@ -128,6 +128,8 @@ export class AuthService {
     const role: UserRole = isBootstrap ? "admin" : (input.role ?? "trader");
     const passwordHash = await hashPassword(input.password);
 
+    // Bootstrap case has no actor — uses plain transaction (requires BYPASSRLS on DB role).
+    // Non-bootstrap case passes actor so RLS context is set for the INSERT.
     const created = await withTransaction(async (client) => {
       let organizationId = actor?.organizationId;
       let organizationName: string | null = null;
@@ -215,7 +217,7 @@ export class AuthService {
       }
 
       return { ...result.rows[0], organization_name: organizationName };
-    });
+    }, isBootstrap ? undefined : actor);
 
     return mapUserPublic(created);
   }
@@ -275,6 +277,8 @@ export class AuthService {
     const refreshTokenHash = hashSha256(refreshToken);
     const expiresAt = getExpiryDateFromJwt(refreshToken);
 
+    // login() runs without actor context — user_sessions has no org_id column.
+    // These writes require BYPASSRLS on the app DB role (or a separate auth role).
     await withTransaction(async (client) => {
       await client.query(
         `
@@ -412,20 +416,22 @@ export class AuthService {
         throw new ApiError(403, "You cannot revoke another user's session");
       }
 
-      await query("UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [
+      await withActor(actor, "UPDATE user_sessions SET revoked_at = NOW() WHERE id = $1", [
         claims.sessionId,
       ]);
       return;
     }
 
-    await query(
+    await withActor(
+      actor,
       "UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL",
       [actor.userId],
     );
   }
 
   async getCurrentUser(actor: AuthContext): Promise<Record<string, unknown>> {
-    const result = await query<UserRow>(
+    const result = await withActor<UserRow>(
+      actor,
       `
       SELECT
         u.id,
@@ -506,13 +512,15 @@ export class AuthService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM users ${whereSql}`,
       values,
     );
 
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query<UserListRow>(
+    const result = await withActor<UserListRow>(
+      actor,
       `
       SELECT
         id,
@@ -552,7 +560,8 @@ export class AuthService {
       throw new ApiError(400, "You cannot disable your own account");
     }
 
-    const result = await query<UserRow>(
+    const result = await withActor<UserRow>(
+      actor,
       `
       UPDATE users
       SET is_active = $1, updated_at = NOW()
@@ -567,7 +576,8 @@ export class AuthService {
     }
 
     if (!shouldBeActive) {
-      await query(
+      await withActor(
+        actor,
         `
         UPDATE user_sessions
         SET revoked_at = NOW()
@@ -592,7 +602,8 @@ export class AuthService {
       );
     }
 
-    const userResult = await query<{ id: string; is_active: boolean }>(
+    const userResult = await withActor<{ id: string; is_active: boolean }>(
+      actor,
       "SELECT id, is_active FROM users WHERE id = $1 AND organization_id = $2",
       [targetUserId, actor.organizationId],
     );
@@ -611,7 +622,8 @@ export class AuthService {
         ? new Date(Date.now() + input.expires_in_days * 24 * 60 * 60 * 1000)
         : null;
 
-    await query(
+    await withActor(
+      actor,
       `
       INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, is_active, expires_at)
       VALUES ($1, $2, $3, $4, $5, TRUE, $6)
@@ -672,13 +684,15 @@ export class AuthService {
 
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `SELECT COUNT(*)::int AS total FROM api_keys ak JOIN users u ON u.id = ak.user_id ${whereSql}`,
       values,
     );
 
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT
         ak.id,
@@ -713,11 +727,12 @@ export class AuthService {
       throw new ApiError(403, "Only admin users can revoke API keys");
     }
 
-    const existing = await query<{
+    const existing = await withActor<{
       id: string;
       is_active: boolean;
       revoked_at: Date | null;
     }>(
+      actor,
       `
       SELECT id, is_active, revoked_at
       FROM api_keys
@@ -739,11 +754,12 @@ export class AuthService {
       };
     }
 
-    const result = await query<{
+    const result = await withActor<{
       id: string;
       is_active: boolean;
       revoked_at: Date;
     }>(
+      actor,
       `
       UPDATE api_keys
       SET is_active = FALSE, revoked_at = NOW()
