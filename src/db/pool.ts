@@ -16,7 +16,7 @@ const ssl =
 
 export const pool = new Pool({
   connectionString: env.databaseUrl,
-  // ssl,
+  ssl,
 });
 
 let poolEventsRegistered = false;
