@@ -13,7 +13,7 @@ import { registerNotificationCrons } from "./modules/notifications/notifications
 
 const app = createApp();
 
-async function bootstrap(): Promise<void> {
+async function main(): Promise<void> {
   registerPoolEventLogging();
 
   await verifyDatabaseConnection();
@@ -51,8 +51,8 @@ async function bootstrap(): Promise<void> {
   });
 }
 
-void bootstrap().catch((error) => {
+void main().catch((error) => {
   logger.error("Server bootstrap failed", { error });
-  
+
   process.exit(1);
 });
