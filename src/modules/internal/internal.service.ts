@@ -6,6 +6,7 @@ import { hashPassword, verifyPasswordHash } from "../../common/security/password
 import { signAccessToken } from "../../common/security/jwt.js";
 import { signSuperAdminToken } from "../../common/security/superAdminJwt.js";
 import { seedStandardBagTypesForOrg } from "../../bootstrap/seedStandardBagTypes.js";
+import { seedStandardGradesForOrg } from "../../bootstrap/seedStandardGrades.js";
 import { query, withTransaction } from "../../db/pool.js";
 
 type SuperAdminRow = {
@@ -365,6 +366,7 @@ export class InternalService {
     });
 
     await seedStandardBagTypesForOrg(created);
+    await seedStandardGradesForOrg(created);
     return this.getOrganization(created);
   }
 
