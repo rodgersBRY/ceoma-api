@@ -2,6 +2,8 @@ import emailjs from "@emailjs/nodejs";
 
 import { logger } from "../../common/logger.js";
 import { env } from "../../config/env.js";
+import { type QueryResult } from "pg";
+
 import { withOrgContext } from "../../db/pool.js";
 import {
   ApiKeyExpiryAlertPayload,
@@ -67,7 +69,7 @@ export class NotificationService {
       return [];
     }
 
-    const result = await withOrgContext<{ email: string }>(
+    const result = await withOrgContext<QueryResult<{ email: string }>>(
       organizationId,
       (client) =>
         client.query<{ email: string }>(
