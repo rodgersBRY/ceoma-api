@@ -12,5 +12,8 @@ export const bootstrapGrades: BootstrapGradeSeed[] = [
   { code: "TT", description: "Light beans recovered from AA/AB grading" },
   { code: "T", description: "Light beans recovered from C grading" },
   { code: "MH", description: "Mbuni Heavy — dry processed natural coffee" },
-  { code: "ML", description: "Mbuni Light — dry processed natural coffee, lighter density" },
+  {
+    code: "ML",
+    description: "Mbuni Light — dry processed natural coffee, lighter density",
+  },
 ];
