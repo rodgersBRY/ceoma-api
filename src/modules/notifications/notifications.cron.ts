@@ -30,7 +30,7 @@ function daysUntil(dateInput: Date): number {
   return Math.floor((dateInput.getTime() - Date.now()) / MS_PER_DAY);
 }
 
-async function sendContractRiskAlerts(): Promise<void> {
+export async function sendContractRiskAlerts(): Promise<void> {
   const result = await query<ContractRiskRow>(
     `
     SELECT
@@ -52,7 +52,10 @@ async function sendContractRiskAlerts(): Promise<void> {
     const unallocatedKg = Math.max(quantityKg - allocatedKg, 0);
     const daysToWindowClose = daysUntil(new Date(row.shipment_window_end));
 
-    if (unallocatedKg > EPSILON && daysToWindowClose <= env.contractRiskAlertWindowDays) {
+    if (
+      unallocatedKg > EPSILON &&
+      daysToWindowClose <= env.contractRiskAlertWindowDays
+    ) {
       await notificationsService.notifyContractRiskAlert({
         organizationId: row.organization_id,
         contractNumber: row.contract_number,
@@ -68,7 +71,7 @@ async function sendContractRiskAlerts(): Promise<void> {
   }
 }
 
-async function sendApiKeyExpiryAlerts(): Promise<void> {
+export async function sendApiKeyExpiryAlerts(): Promise<void> {
   const result = await query<ApiKeyExpiryRow>(
     `
     SELECT
@@ -94,7 +97,10 @@ async function sendApiKeyExpiryAlerts(): Promise<void> {
 
   for (const row of result.rows) {
     const expiresAt = new Date(row.expires_at);
-    const daysToExpiry = Math.max(Math.ceil((expiresAt.getTime() - Date.now()) / MS_PER_DAY), 0);
+    const daysToExpiry = Math.max(
+      Math.ceil((expiresAt.getTime() - Date.now()) / MS_PER_DAY),
+      0,
+    );
 
     await notificationsService.notifyApiKeyExpiring({
       organizationId: row.organization_id,
@@ -108,11 +114,17 @@ async function sendApiKeyExpiryAlerts(): Promise<void> {
   }
 
   if (alertsSent > 0) {
-    logger.info("API key expiry alerts dispatched", { alerts_sent: alertsSent });
+    logger.info("API key expiry alerts dispatched", {
+      alerts_sent: alertsSent,
+    });
   }
 }
 
-function scheduleTask(name: string, schedule: string, task: () => Promise<void>): void {
+function scheduleTask(
+  name: string,
+  schedule: string,
+  task: () => Promise<void>,
+): void {
   if (!cron.validate(schedule)) {
     logger.error("Invalid cron schedule. Notification task skipped", {
       task: name,
@@ -151,6 +163,14 @@ export function registerNotificationCrons(): void {
     return;
   }
 
-  scheduleTask("contract_risk_alerts", env.contractRiskCronSchedule, sendContractRiskAlerts);
-  scheduleTask("api_key_expiry_alerts", env.apiKeyExpiryCronSchedule, sendApiKeyExpiryAlerts);
+  scheduleTask(
+    "contract_risk_alerts",
+    env.contractRiskCronSchedule,
+    sendContractRiskAlerts,
+  );
+  scheduleTask(
+    "api_key_expiry_alerts",
+    env.apiKeyExpiryCronSchedule,
+    sendApiKeyExpiryAlerts,
+  );
 }

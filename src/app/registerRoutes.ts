@@ -12,8 +12,10 @@ import { internalRouter } from "../modules/internal/internal.routes.js";
 import { procurementRouter } from "../modules/procurement/procurement.routes.js";
 import { shipmentsRouter } from "../modules/shipments/shipments.routes.js";
 import { traceabilityRouter } from "../modules/traceability/traceability.routes.js";
+import { notificationsCronRouter } from "../modules/notifications/notifications.cron.routes.js";
 
 export function registerRoutes(app: Express): void {
+  app.use("/api/v1/cron", notificationsCronRouter);
   app.use("/api/internal/v1", internalRouter);
   app.use("/api/v1/auth", idempotencyMiddleware, authRouter);
 
