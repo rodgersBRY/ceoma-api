@@ -53,7 +53,6 @@ async function main(): Promise<void> {
   });
 }
 
-
 void main().catch((error) => {
   logger.error("Server bootstrap failed", { error });
 
