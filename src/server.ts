@@ -1,6 +1,8 @@
 import { createApp } from "./app/createApp.js";
 import { seedInitialUsersIfEmpty } from "./bootstrap/seedInitialUsers.js";
+import { seedSuperAdminsIfConfigured } from "./bootstrap/seedSuperAdmins.js";
 import { seedStandardBagTypesIfMissing } from "./bootstrap/seedStandardBagTypes.js";
+import { seedStandardGradesIfMissing } from "./bootstrap/seedStandardGrades.js";
 import { logger } from "./common/logger.js";
 import { env } from "./config/env.js";
 import {
@@ -12,13 +14,18 @@ import { registerNotificationCrons } from "./modules/notifications/notifications
 
 const app = createApp();
 
-async function bootstrap(): Promise<void> {
+async function main(): Promise<void> {
   registerPoolEventLogging();
 
   await verifyDatabaseConnection();
 
-  await seedInitialUsersIfEmpty();
+  await seedSuperAdminsIfConfigured();
+
+  // await seedInitialUsersIfEmpty();
+
   await seedStandardBagTypesIfMissing();
+  await seedStandardGradesIfMissing();
+
   registerNotificationCrons();
 
   const server = app.listen(env.port, () => {
@@ -27,9 +34,12 @@ async function bootstrap(): Promise<void> {
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`Received ${signal}. Shutting down gracefully.`);
+
     server.close(async () => {
       await pool.end();
+
       logger.info("HTTP server and database pool closed.");
+
       process.exit(0);
     });
   };
@@ -37,13 +47,14 @@ async function bootstrap(): Promise<void> {
   process.on("SIGINT", () => {
     void shutdown("SIGINT");
   });
-  
+
   process.on("SIGTERM", () => {
     void shutdown("SIGTERM");
   });
 }
 
-void bootstrap().catch((error) => {
+void main().catch((error) => {
   logger.error("Server bootstrap failed", { error });
+
   process.exit(1);
 });

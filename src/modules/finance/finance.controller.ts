@@ -5,23 +5,41 @@ import { financeService } from "./finance.service.js";
 import { costEntrySchema } from "./finance.validation.js";
 
 export class FinanceController {
+  private parseUuid(value: string | string[] | undefined, label: string): string {
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    const raw = String(rawValue ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(raw)) {
+      throw new ApiError(400, `Invalid ${label}`);
+    }
+    return raw;
+  }
+
   async createCostEntry(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const payload = costEntrySchema.parse(req.body);
-    const costEntry = await financeService.createCostEntry(payload);
+    const costEntry = await financeService.createCostEntry(payload, req.auth);
     res.status(201).json(costEntry);
   }
 
   async getContractProfitability(req: Request, res: Response): Promise<void> {
-    const contractId = Number(req.params.contractId);
-    if (!Number.isFinite(contractId) || contractId <= 0) {
-      throw new ApiError(400, "Invalid contractId");
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
     }
-    const data = await financeService.getContractProfitability(contractId);
+    const contractId = this.parseUuid(req.params.contractId, "contractId");
+    const data = await financeService.getContractProfitability(
+      contractId,
+      req.auth,
+    );
     res.json(data);
   }
 
-  async getReferenceData(_req: Request, res: Response): Promise<void> {
-    const data = await financeService.getReferenceData();
+  async getReferenceData(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
+    const data = await financeService.getReferenceData(req.auth);
     res.json(data);
   }
 }

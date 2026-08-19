@@ -106,6 +106,21 @@ export function toIntFilter(
   return parsed;
 }
 
+export function toUuidFilter(
+  filters: Record<string, string>,
+  key: string,
+): string | undefined {
+  const value = filters[key];
+  if (value === undefined) {
+    return undefined;
+  }
+  const normalized = value.trim();
+  if (!/^[0-9a-f-]{36}$/i.test(normalized)) {
+    throw new ApiError(400, `filter_${key} must be a valid UUID`);
+  }
+  return normalized;
+}
+
 export function toBooleanFilter(
   filters: Record<string, string>,
   key: string,

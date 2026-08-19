@@ -8,8 +8,10 @@ type TokenKind = "access" | "refresh";
 type BaseClaims = {
   sub: string;
   role: string;
+  organizationId: string;
   kind: TokenKind;
   sessionId: string;
+  impersonated?: boolean;
 };
 
 export type AccessTokenClaims = BaseClaims & {
@@ -21,21 +23,27 @@ export type RefreshTokenClaims = BaseClaims & {
 };
 
 export function signAccessToken(payload: {
-  userId: number;
+  userId: string;
   role: string;
+  organizationId: string;
   sessionId: string;
+  impersonated?: boolean;
+  expiresIn?: SignOptions["expiresIn"];
 }): string {
   const options: SignOptions = {
-    expiresIn: env.jwtAccessTtl as SignOptions["expiresIn"],
+    expiresIn: payload.expiresIn ?? (env.jwtAccessTtl as SignOptions["expiresIn"]),
     issuer: "ceoms-api",
     audience: "ceoms-clients",
   };
+
   return jwt.sign(
     {
       sub: String(payload.userId),
       role: payload.role,
+      organizationId: payload.organizationId,
       kind: "access",
       sessionId: payload.sessionId,
+      impersonated: payload.impersonated ?? false,
     } satisfies AccessTokenClaims,
     env.jwtAccessSecret,
     options,
@@ -43,8 +51,9 @@ export function signAccessToken(payload: {
 }
 
 export function signRefreshToken(payload: {
-  userId: number;
+  userId: string;
   role: string;
+  organizationId: string;
   sessionId: string;
 }): string {
   const options: SignOptions = {
@@ -52,10 +61,12 @@ export function signRefreshToken(payload: {
     issuer: "ceoms-api",
     audience: "ceoms-clients",
   };
+
   return jwt.sign(
     {
       sub: String(payload.userId),
       role: payload.role,
+      organizationId: payload.organizationId,
       kind: "refresh",
       sessionId: payload.sessionId,
     } satisfies RefreshTokenClaims,
@@ -70,22 +81,40 @@ function assertClaims(payload: string | JwtPayload | undefined): asserts payload
   }
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 export function verifyAccessToken(token: string): AccessTokenClaims {
   try {
     const decoded = jwt.verify(token, env.jwtAccessSecret, {
       issuer: "ceoms-api",
       audience: "ceoms-clients",
     });
+
     assertClaims(decoded);
     if (decoded.kind !== "access") {
       throw new ApiError(401, "Invalid access token type");
     }
+
     if (typeof decoded.sub !== "string" || typeof decoded.role !== "string") {
       throw new ApiError(401, "Invalid access token claims");
     }
+
+    if (!isUuid(decoded.sub)) {
+      throw new ApiError(401, "Invalid access token subject");
+    }
+
+    if (typeof decoded.organizationId !== "string" || !isUuid(decoded.organizationId)) {
+      throw new ApiError(401, "Invalid access token organization");
+    }
+
     if (typeof decoded.sessionId !== "string") {
       throw new ApiError(401, "Invalid access token session");
     }
+
     return decoded as AccessTokenClaims;
   } catch {
     throw new ApiError(401, "Invalid or expired access token");
@@ -98,16 +127,28 @@ export function verifyRefreshToken(token: string): RefreshTokenClaims {
       issuer: "ceoms-api",
       audience: "ceoms-clients",
     });
+
     assertClaims(decoded);
     if (decoded.kind !== "refresh") {
       throw new ApiError(401, "Invalid refresh token type");
     }
+
     if (typeof decoded.sub !== "string" || typeof decoded.role !== "string") {
       throw new ApiError(401, "Invalid refresh token claims");
     }
+    
+    if (!isUuid(decoded.sub)) {
+      throw new ApiError(401, "Invalid refresh token subject");
+    }
+
+    if (typeof decoded.organizationId !== "string" || !isUuid(decoded.organizationId)) {
+      throw new ApiError(401, "Invalid refresh token organization");
+    }
+
     if (typeof decoded.sessionId !== "string") {
       throw new ApiError(401, "Invalid refresh token session");
     }
+
     return decoded as RefreshTokenClaims;
   } catch {
     throw new ApiError(401, "Invalid or expired refresh token");

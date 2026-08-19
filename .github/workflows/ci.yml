@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ceoms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ceoms_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ceoms_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ceoms_test
+      NODE_ENV: test
+      JWT_ACCESS_SECRET: ci-access-secret-32-characters-minimum
+      JWT_REFRESH_SECRET: ci-refresh-secret-32-characters-minimum
+      SUPER_ADMIN_JWT_SECRET: ci-super-admin-secret-32-characters-min
+      DATA_ENCRYPTION_KEY: QOXS0h7/79Gmiz/UMpcaHE0LrfwcCWLdBsx8WuUDLiw=
+      CSRF_SECRET: ci-csrf-secret-32-characters-minimum-x
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      SUPER_ADMIN_BOOTSTRAP_EMAIL: super-admin@test.ceoms.local
+      SUPER_ADMIN_BOOTSTRAP_PASSWORD: Sup3rSecureAdminPassw0rd!
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run migrations
+        run: npx prisma migrate deploy
+
+      - name: Type check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests
+        run: npm run test:coverage

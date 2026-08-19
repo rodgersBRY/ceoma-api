@@ -1,0 +1,14 @@
+{
+  "builds": [{ "src": "api/index.ts", "use": "@vercel/node" }],
+  "routes": [{ "src": "/(.*)", "dest": "/api/index.ts" }],
+  "crons": [
+    {
+      "path": "/api/v1/cron/contract-risk-alerts",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/v1/cron/api-key-expiry-alerts",
+      "schedule": "15 7 * * *"
+    }
+  ]
+}

@@ -29,6 +29,7 @@ Handles inbound lot creation from both procurement channels:
 - Uses transactions from `src/db/pool.ts` for lot + procurement record atomicity.
 - Uses shared helper checks (`ensureReference`) for referential integrity.
 - Lot creation defaults to `status = in_stock` and initializes `weight_available_kg`.
+- Lot creation endpoints are plan-guarded (per-organization lot limits).
 - `reference-data` exposes user-friendly option lists for suppliers, agents, warehouses, grades, bag types, and agreements.
 - Auction intake requires `marketing_agent_id` to point to a supplier with type `auction_agent` (configured in Master Data).
 - Direct agreements cannot be created against auction marketing agents.

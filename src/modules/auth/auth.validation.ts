@@ -15,6 +15,7 @@ export const registerSchema = z.object({
     .min(12, { message: "Password must be at least 12 characters long" }),
   full_name: z.string().min(1, { message: "Full name is required" }),
   role: userRoleSchema.optional(),
+  organization_name: z.string().min(2).optional(),
 });
 
 export const loginSchema = z.object({
@@ -32,7 +33,7 @@ export const logoutSchema = z.object({
 
 export const createApiKeySchema = z.object({
   name: z.string().min(1),
-  user_id: z.number().int().positive().optional(),
+  user_id: z.string().uuid().optional(),
   expires_in_days: z.number().int().positive().max(365).optional(),
 });
 

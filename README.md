@@ -26,6 +26,43 @@ Codebase is organized for enterprise maintainability with separated layers:
 
 Each module has its own `README.md` under `src/modules/<module>/README.md`.
 
+## Multi-tenant model
+
+CEOMS runs in shared-database, row-level isolation mode:
+
+- Every business table includes `organization_id`.
+- JWTs and API keys resolve an `organizationId` that scopes every query.
+- Unique identifiers (lot code, contract number, shipment number) are unique per organization, not globally.
+
+Bootstrap flow: the very first registration creates the first organization, its subscription, and the initial admin user.
+
+## Super admin layer
+
+Platform operators authenticate separately via `/api/internal/v1` with a dedicated JWT secret.
+This surface can manage organizations, subscriptions, and impersonation without touching tenant auth.
+
+Super admin tokens are issued via:
+
+- `POST /api/internal/v1/auth/login`
+
+Internal endpoints (super admin only):
+
+- `GET /api/internal/v1/orgs`
+- `POST /api/internal/v1/orgs`
+- `GET /api/internal/v1/orgs/:orgId`
+- `PATCH /api/internal/v1/orgs/:orgId/plan`
+- `PATCH /api/internal/v1/orgs/:orgId/trial`
+- `PATCH /api/internal/v1/orgs/:orgId/status`
+- `POST /api/internal/v1/orgs/:orgId/notes`
+- `POST /api/internal/v1/orgs/:orgId/impersonate`
+- `GET /api/internal/v1/revenue`
+- `GET /api/internal/v1/alerts`
+
+Tenant admins never access these routes. Super admin tokens are signed with `SUPER_ADMIN_JWT_SECRET` and validated by a separate middleware.
+`SUPER_ADMIN_JWT_TTL` controls token expiry (default `8h`).
+
+Suspended organizations are blocked from mutating requests (read-only access only).
+
 ## Security Controls Implemented
 
 - Authentication and authorization:
@@ -38,7 +75,7 @@ Each module has its own `README.md` under `src/modules/<module>/README.md`.
   - strict CORS allowlist
   - global and auth-specific rate limiters
   - JSON and URL-encoded request size limits
-  - request logging through `winston` + `morgan`
+  - request logging through `winston`
   - request ID propagation (`x-request-id`)
 - Data security:
   - Argon2id password hashing
@@ -51,6 +88,26 @@ Each module has its own `README.md` under `src/modules/<module>/README.md`.
   - CSRF protection for browser-origin mutating requests
   - idempotency protection for mutating requests (`Idempotency-Key`)
   - API versioning under `/api/v1`
+
+## Identifier format
+
+All primary and foreign keys are UUIDs (v4). Any `:id` path params or `filter_*` values that reference IDs must be UUID strings.
+
+UUID migration note: the UUID migration assumes empty tables. For dev, run `prisma migrate reset` after pulling the migration. For production, you must perform a controlled data migration before deploying.
+
+## Plan enforcement
+
+The API enforces plan limits on write operations using `planGuard` middleware:
+
+- `users` (active users only)
+- `lots`
+- `api_keys` (active, non-revoked only)
+
+Default limits:
+
+- `starter`: 3 users, 50 lots, 0 API keys
+- `growth`: 10 users, 999 lots, 5 API keys
+- `enterprise`: unlimited
 
 ## What is implemented
 
@@ -127,15 +184,27 @@ Versioned endpoints are served under `/api/v1/*`.
 
 Set these in `.env` to enable email notifications and daily alerts:
 
-- `RESEND_API_KEY`
+- `EMAILJS_SERVICE_ID`
+- `EMAILJS_TEMPLATE_ID`
+- `EMAILJS_PUBLIC_KEY`
+- `EMAILJS_PRIVATE_KEY`
 - `NOTIFICATION_FROM_EMAIL`
-- `NOTIFICATION_ADMIN_EMAILS` (comma-separated)
+- `NOTIFICATION_ADMIN_EMAILS` (optional, comma-separated system recipients)
 - `NOTIFICATIONS_CRON_ENABLED` (`true`/`false`)
 - `NOTIFICATIONS_CRON_TIMEZONE` (for example `UTC`)
 - `CONTRACT_RISK_CRON_SCHEDULE` (default `0 7 * * *`)
 - `CONTRACT_RISK_ALERT_WINDOW_DAYS` (default `7`)
 - `API_KEY_EXPIRY_CRON_SCHEDULE` (default `15 7 * * *`)
 - `API_KEY_EXPIRY_ALERT_WINDOW_DAYS` (default `7`)
+
+## Super admin bootstrap (optional)
+
+If you want the API to create the first super admin automatically:
+
+- `SUPER_ADMIN_BOOTSTRAP_EMAIL`
+- `SUPER_ADMIN_BOOTSTRAP_PASSWORD`
+
+If those are set and no super admins exist, the server will create one on startup.
 
 ## First-run default users
 
@@ -165,21 +234,6 @@ Default bag types:
 - `60kg`
 
 This is idempotent and safe to run on every startup (no duplicate inserts for these standards).
-
-## Web application (Next.js)
-
-The repository includes a separate frontend app in `../web`.
-
-Run it in a second terminal:
-
-```bash
-cd ../web
-cp .env.example .env
-npm install
-npm run dev
-```
-
-Frontend runs at `http://localhost:3000` and securely proxies requests to the API.
 
 ## Auth and CSRF Usage
 
@@ -255,6 +309,17 @@ npm run prisma:migrate:deploy
 
 ## Key endpoints
 
+- `POST /api/internal/v1/auth/login`
+- `GET /api/internal/v1/orgs`
+- `POST /api/internal/v1/orgs`
+- `GET /api/internal/v1/orgs/:orgId`
+- `PATCH /api/internal/v1/orgs/:orgId/plan`
+- `PATCH /api/internal/v1/orgs/:orgId/trial`
+- `PATCH /api/internal/v1/orgs/:orgId/status`
+- `POST /api/internal/v1/orgs/:orgId/notes`
+- `POST /api/internal/v1/orgs/:orgId/impersonate`
+- `GET /api/internal/v1/revenue`
+- `GET /api/internal/v1/alerts`
 - `GET /api/v1/health`
 - `GET /api/v1/auth/csrf-token`
 - `POST /api/v1/auth/register`
