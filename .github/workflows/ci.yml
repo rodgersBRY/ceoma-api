@@ -44,28 +44,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: api/package-lock.json
 
       - name: Install dependencies
-        working-directory: api
         run: npm ci
 
       - name: Generate Prisma client
-        working-directory: api
         run: npx prisma generate
 
       - name: Run migrations
-        working-directory: api
         run: npx prisma migrate deploy
 
       - name: Type check
-        working-directory: api
         run: npm run check
 
       - name: Build
-        working-directory: api
         run: npm run build
 
       - name: Run tests
-        working-directory: api
         run: npm run test:coverage
