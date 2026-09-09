@@ -9,12 +9,156 @@ import { ApiError } from "../../common/errors/ApiError.js";
 import { withActor } from "../../db/pool.js";
 import { AuthContext } from "../../types/auth.js";
 import {
+  BulkImportConfig,
+  BulkImportResult,
+  buildImportTemplateCsv,
+  runBulkImport,
+} from "./master.bulkImport.js";
+import {
   BagTypeInput,
   BuyerInput,
   GradeInput,
   SupplierInput,
   WarehouseInput,
+  bagTypeSchema,
+  buyerSchema,
+  gradeSchema,
+  supplierSchema,
+  warehouseSchema,
 } from "./master.validation.js";
+
+const supplierImportConfig: BulkImportConfig<SupplierInput> = {
+  entityLabel: "Supplier",
+  table: "suppliers",
+  columns: [
+    {
+      header: "name",
+      field: "name",
+      required: true,
+      example: "Kilimanjaro Farmers Cooperative",
+    },
+    { header: "type", field: "type", required: false, example: "mill" },
+    { header: "country", field: "country", required: false, example: "Kenya" },
+  ],
+  schema: supplierSchema,
+  dedupeKey: (input) => input.name.trim().toLowerCase(),
+  existingKeysQuery: `SELECT name AS key FROM suppliers WHERE organization_id = $1`,
+  insertColumns: ["id", "name", "supplier_type", "country", "organization_id"],
+  toInsertValues: (input, id, organizationId) => [
+    id,
+    input.name,
+    input.type,
+    input.country ?? null,
+    organizationId,
+  ],
+};
+
+const buyerImportConfig: BulkImportConfig<BuyerInput> = {
+  entityLabel: "Buyer",
+  table: "buyers",
+  columns: [
+    {
+      header: "name",
+      field: "name",
+      required: true,
+      example: "Blue Bottle Coffee",
+    },
+    {
+      header: "country",
+      field: "country",
+      required: false,
+      example: "United States",
+    },
+  ],
+  schema: buyerSchema,
+  dedupeKey: (input) => input.name.trim().toLowerCase(),
+  existingKeysQuery: `SELECT name AS key FROM buyers WHERE organization_id = $1`,
+  insertColumns: ["id", "name", "country", "organization_id"],
+  toInsertValues: (input, id, organizationId) => [
+    id,
+    input.name,
+    input.country ?? null,
+    organizationId,
+  ],
+};
+
+const warehouseImportConfig: BulkImportConfig<WarehouseInput> = {
+  entityLabel: "Warehouse",
+  table: "warehouses",
+  columns: [
+    {
+      header: "name",
+      field: "name",
+      required: true,
+      example: "Mombasa Central Warehouse",
+    },
+    {
+      header: "location",
+      field: "location",
+      required: false,
+      example: "Mombasa",
+    },
+  ],
+  schema: warehouseSchema,
+  dedupeKey: (input) => input.name.trim().toLowerCase(),
+  existingKeysQuery: `SELECT name AS key FROM warehouses WHERE organization_id = $1`,
+  insertColumns: ["id", "name", "location", "organization_id"],
+  toInsertValues: (input, id, organizationId) => [
+    id,
+    input.name,
+    input.location ?? null,
+    organizationId,
+  ],
+};
+
+const gradeImportConfig: BulkImportConfig<GradeInput> = {
+  entityLabel: "Grade",
+  table: "grades",
+  columns: [
+    { header: "code", field: "code", required: true, example: "AA" },
+    {
+      header: "description",
+      field: "description",
+      required: false,
+      example: "Large bean, top grade",
+    },
+  ],
+  schema: gradeSchema,
+  dedupeKey: (input) => input.code.trim().toLowerCase(),
+  existingKeysQuery: `SELECT code AS key FROM grades WHERE organization_id = $1`,
+  insertColumns: ["id", "code", "description", "organization_id"],
+  toInsertValues: (input, id, organizationId) => [
+    id,
+    input.code,
+    input.description ?? null,
+    organizationId,
+  ],
+};
+
+const bagTypeImportConfig: BulkImportConfig<BagTypeInput> = {
+  entityLabel: "Bag type",
+  table: "bag_types",
+  columns: [
+    { header: "name", field: "name", required: true, example: "60kg Jute Bag" },
+    {
+      header: "weight_kg",
+      field: "weight_kg",
+      required: true,
+      type: "number",
+      example: "60",
+    },
+  ],
+  schema: bagTypeSchema,
+  dedupeKey: (input) => input.name.trim().toLowerCase(),
+  existingKeysQuery: `SELECT name AS key FROM bag_types WHERE organization_id = $1`,
+  insertColumns: ["id", "name", "weight_kg", "organization_id"],
+  toInsertValues: (input, id, organizationId) => [
+    id,
+    input.name,
+    input.weight_kg,
+    organizationId,
+  ],
+};
 
 type PgErrorLike = {
   code?: string;
@@ -42,7 +186,13 @@ export class MasterService {
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.name, input.type, input.country ?? null, actor.organizationId],
+      [
+        crypto.randomUUID(),
+        input.name,
+        input.type,
+        input.country ?? null,
+        actor.organizationId,
+      ],
     );
 
     return result.rows[0];
@@ -132,10 +282,7 @@ export class MasterService {
   }
 
   // BUYER SERVICES
-  async createBuyer(
-    input: BuyerInput,
-    actor: AuthContext,
-  ): Promise<unknown> {
+  async createBuyer(input: BuyerInput, actor: AuthContext): Promise<unknown> {
     const result = await withActor(
       actor,
       `
@@ -143,7 +290,12 @@ export class MasterService {
       VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.name, input.country ?? null, actor.organizationId],
+      [
+        crypto.randomUUID(),
+        input.name,
+        input.country ?? null,
+        actor.organizationId,
+      ],
     );
     return result.rows[0];
   }
@@ -236,7 +388,12 @@ export class MasterService {
       VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.name, input.location ?? null, actor.organizationId],
+      [
+        crypto.randomUUID(),
+        input.name,
+        input.location ?? null,
+        actor.organizationId,
+      ],
     );
     return result.rows[0];
   }
@@ -318,10 +475,7 @@ export class MasterService {
   }
 
   // GRADE SERVICES
-  async createGrade(
-    input: GradeInput,
-    actor: AuthContext,
-  ): Promise<unknown> {
+  async createGrade(input: GradeInput, actor: AuthContext): Promise<unknown> {
     const result = await withActor(
       actor,
       `
@@ -329,7 +483,12 @@ export class MasterService {
       VALUES ($1, $2, $3, $4)
       RETURNING *;
       `,
-      [crypto.randomUUID(), input.code, input.description ?? null, actor.organizationId],
+      [
+        crypto.randomUUID(),
+        input.code,
+        input.description ?? null,
+        actor.organizationId,
+      ],
     );
     return result.rows[0];
   }
@@ -499,6 +658,67 @@ export class MasterService {
       Number(countResult.rows[0].total),
       listQuery,
     );
+  }
+
+  // BULK IMPORT SERVICES
+  async importSuppliers(
+    fileBuffer: Buffer,
+    filename: string,
+    actor: AuthContext,
+  ): Promise<BulkImportResult> {
+    return runBulkImport(supplierImportConfig, fileBuffer, filename, actor);
+  }
+
+  getSuppliersImportTemplate(): string {
+    return buildImportTemplateCsv(supplierImportConfig.columns);
+  }
+
+  async importBuyers(
+    fileBuffer: Buffer,
+    filename: string,
+    actor: AuthContext,
+  ): Promise<BulkImportResult> {
+    return runBulkImport(buyerImportConfig, fileBuffer, filename, actor);
+  }
+
+  getBuyersImportTemplate(): string {
+    return buildImportTemplateCsv(buyerImportConfig.columns);
+  }
+
+  async importWarehouses(
+    fileBuffer: Buffer,
+    filename: string,
+    actor: AuthContext,
+  ): Promise<BulkImportResult> {
+    return runBulkImport(warehouseImportConfig, fileBuffer, filename, actor);
+  }
+
+  getWarehousesImportTemplate(): string {
+    return buildImportTemplateCsv(warehouseImportConfig.columns);
+  }
+
+  async importGrades(
+    fileBuffer: Buffer,
+    filename: string,
+    actor: AuthContext,
+  ): Promise<BulkImportResult> {
+    return runBulkImport(gradeImportConfig, fileBuffer, filename, actor);
+  }
+
+  getGradesImportTemplate(): string {
+    return buildImportTemplateCsv(gradeImportConfig.columns);
+  }
+
+  async importBagTypes(
+    fileBuffer: Buffer,
+    filename: string,
+    actor: AuthContext,
+  ): Promise<BulkImportResult> {
+    return runBulkImport(bagTypeImportConfig, fileBuffer, filename, actor);
+  }
+
+  getBagTypesImportTemplate(): string {
+    return buildImportTemplateCsv(bagTypeImportConfig.columns);
   }
 }
 
