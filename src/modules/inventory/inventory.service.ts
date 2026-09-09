@@ -1,22 +1,28 @@
+import crypto from "node:crypto";
+
 import { ApiError } from "../../common/errors/ApiError.js";
 import { EPSILON, refreshLotStatus, toNumber } from "../../common/dbHelpers.js";
 import {
   ListQueryParams,
   buildPaginatedResult,
   escapeLikeQuery,
-  toIntFilter,
+  toUuidFilter,
 } from "../../common/pagination.js";
-import { query, withTransaction } from "../../db/pool.js";
+import { withActor, withTransaction } from "../../db/pool.js";
+import { AuthContext } from "../../types/auth.js";
 import { notificationsService } from "../notifications/notifications.service.js";
 import { StockAdjustmentInput } from "./inventory.validation.js";
 
 export class InventoryService {
-  async listLots(listQuery: ListQueryParams): Promise<unknown> {
+  async listLots(listQuery: ListQueryParams, actor: AuthContext): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
-    const gradeId = toIntFilter(listQuery.filters, "grade_id");
-    const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
-    const supplierId = toIntFilter(listQuery.filters, "supplier_id");
+    const gradeId = toUuidFilter(listQuery.filters, "grade_id");
+    const warehouseId = toUuidFilter(listQuery.filters, "warehouse_id");
+    const supplierId = toUuidFilter(listQuery.filters, "supplier_id");
+
+    values.push(actor.organizationId);
+    whereClauses.push(`l.organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -48,7 +54,8 @@ export class InventoryService {
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `
       SELECT COUNT(*)::int AS total
       FROM lots l
@@ -57,7 +64,8 @@ export class InventoryService {
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT
         l.id,
@@ -91,11 +99,12 @@ export class InventoryService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async adjustStock(input: StockAdjustmentInput): Promise<unknown> {
+  async adjustStock(input: StockAdjustmentInput, actor: AuthContext): Promise<unknown> {
     const adjustment = await withTransaction(async (client) => {
-      const lotResult = await client.query("SELECT * FROM lots WHERE id = $1 FOR UPDATE", [
-        input.lot_id,
-      ]);
+      const lotResult = await client.query(
+        "SELECT * FROM lots WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        [input.lot_id, actor.organizationId],
+      );
       if (lotResult.rowCount === 0) {
         throw new ApiError(404, `Lot ${input.lot_id} not found`);
       }
@@ -111,48 +120,58 @@ export class InventoryService {
         `
         UPDATE lots
         SET weight_total_kg = $1, weight_available_kg = $2
-        WHERE id = $3;
+        WHERE id = $3 AND organization_id = $4;
         `,
-        [Math.max(newTotal, 0), Math.max(newAvailable, 0), input.lot_id],
+        [Math.max(newTotal, 0), Math.max(newAvailable, 0), input.lot_id, actor.organizationId],
       );
-      await refreshLotStatus(client, input.lot_id);
+      await refreshLotStatus(client, input.lot_id, actor.organizationId);
 
+      const adjustmentId = crypto.randomUUID();
       const insertResult = await client.query(
         `
-        INSERT INTO stock_adjustments (lot_id, adjustment_kg, reason, approved_by)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO stock_adjustments (id, lot_id, adjustment_kg, reason, approved_by, organization_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *;
         `,
-        [input.lot_id, input.adjustment_kg, input.reason, input.approved_by],
+        [adjustmentId, input.lot_id, input.adjustment_kg, input.reason, input.approved_by, actor.organizationId],
       );
       return {
         adjustment: insertResult.rows[0],
         lotCode: String(lot.lot_code),
       };
-    });
+    }, actor);
 
     await notificationsService.notifyStockAdjusted({
       lotCode: adjustment.lotCode,
       adjustmentKg: input.adjustment_kg,
       reason: input.reason,
       approvedBy: input.approved_by,
+      organizationId: actor.organizationId,
     });
 
     return adjustment.adjustment;
   }
 
-  async getDashboard(): Promise<unknown> {
-    const lotsResult = await query(
-      "SELECT grade_id, source, weight_total_kg, weight_available_kg FROM lots",
+  async getDashboard(actor: AuthContext): Promise<unknown> {
+    const lotsResult = await withActor(
+      actor,
+      "SELECT grade_id, source, weight_total_kg, weight_available_kg FROM lots WHERE organization_id = $1",
+      [actor.organizationId],
     );
-    const gradesResult = await query("SELECT id, code FROM grades");
-    const allocatedResult = await query(
-      "SELECT COALESCE(SUM(allocated_kg), 0) AS total FROM allocations WHERE status = 'allocated'",
+    const gradesResult = await withActor(
+      actor,
+      "SELECT id, code FROM grades WHERE organization_id = $1",
+      [actor.organizationId],
+    );
+    const allocatedResult = await withActor(
+      actor,
+      "SELECT COALESCE(SUM(allocated_kg), 0) AS total FROM allocations WHERE status = 'allocated' AND organization_id = $1",
+      [actor.organizationId],
     );
 
-    const gradeMap = new Map<number, string>();
+    const gradeMap = new Map<string, string>();
     for (const row of gradesResult.rows) {
-      gradeMap.set(Number(row.id), String(row.code));
+      gradeMap.set(String(row.id), String(row.code));
     }
 
     let totalPhysical = 0;
@@ -176,7 +195,7 @@ export class InventoryService {
       bySource[source].total_kg += total;
       bySource[source].available_kg += free;
 
-      const grade = gradeMap.get(Number(row.grade_id)) ?? "unknown";
+      const grade = gradeMap.get(String(row.grade_id)) ?? "unknown";
       if (!byGrade[grade]) {
         byGrade[grade] = { total_kg: 0, available_kg: 0 };
       }
@@ -193,36 +212,48 @@ export class InventoryService {
     };
   }
 
-  async getReferenceData(): Promise<unknown> {
+  async getReferenceData(actor: AuthContext): Promise<unknown> {
     const [gradesResult, warehousesResult, suppliersResult, lotsResult] = await Promise.all([
-      query(
+      withActor(
+        actor,
         `
         SELECT id, code
         FROM grades
+        WHERE organization_id = $1
         ORDER BY code ASC
         `,
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT id, name
         FROM warehouses
+        WHERE organization_id = $1
         ORDER BY name ASC
         `,
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT id, name, supplier_type
         FROM suppliers
+        WHERE organization_id = $1
         ORDER BY name ASC
         `,
+        [actor.organizationId],
       ),
-      query(
+      withActor(
+        actor,
         `
         SELECT id, lot_code, source, status, weight_available_kg
         FROM lots
+        WHERE organization_id = $1
         ORDER BY created_at DESC, id DESC
         LIMIT 1000
         `,
+        [actor.organizationId],
       ),
     ]);
 

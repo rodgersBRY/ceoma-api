@@ -29,11 +29,14 @@ function stableStringify(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stableStringify(item)).join(",")}]`;
   }
-  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-    a.localeCompare(b),
+  const entries = Object.entries(value as Record<string, unknown>).sort(
+    ([a], [b]) => a.localeCompare(b),
   );
   return `{${entries
-    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
+    .map(
+      ([key, entryValue]) =>
+        `${JSON.stringify(key)}:${stableStringify(entryValue)}`,
+    )
     .join(",")}}`;
 }
 
@@ -49,7 +52,7 @@ function buildFingerprint(req: Request, actorScope: string): string {
 
 function getActorScope(req: Request): string {
   if (req.auth) {
-    return `user:${req.auth.userId}`;
+    return `org:${req.auth.organizationId}:user:${req.auth.userId}`;
   }
   return `anonymous:${req.ip}`;
 }
@@ -86,11 +89,22 @@ export const idempotencyMiddleware: RequestHandler = (
     return;
   }
 
+  const contentType = req.headers["content-type"] ?? "";
+  if (contentType.startsWith("multipart/form-data")) {
+    next();
+    return;
+  }
+
   const keyRaw = req.headers["idempotency-key"];
   const idempotencyKey = Array.isArray(keyRaw) ? keyRaw[0] : keyRaw;
   if (!idempotencyKey) {
     if (env.idempotencyRequireKey) {
-      next(new ApiError(400, "Idempotency-Key header is required for mutating requests"));
+      next(
+        new ApiError(
+          400,
+          "Idempotency-Key header is required for mutating requests",
+        ),
+      );
       return;
     }
     next();
@@ -173,7 +187,10 @@ export const idempotencyMiddleware: RequestHandler = (
           );
         }
         if (existing.status === "processing") {
-          throw new ApiError(409, "A matching request is already being processed");
+          throw new ApiError(
+            409,
+            "A matching request is already being processed",
+          );
         }
 
         res.setHeader("idempotency-replayed", "true");
@@ -226,7 +243,9 @@ export const idempotencyMiddleware: RequestHandler = (
 
         const statusCode = res.statusCode;
         const status = statusCode >= 500 ? "failed" : "completed";
-        const payload = responseCaptured ? normalizeResponseBody(capturedBody) : null;
+        const payload = responseCaptured
+          ? normalizeResponseBody(capturedBody)
+          : null;
         const contentTypeHeader = res.getHeader("content-type");
         const contentType =
           typeof contentTypeHeader === "string"

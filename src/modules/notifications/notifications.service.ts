@@ -2,7 +2,9 @@ import emailjs from "@emailjs/nodejs";
 
 import { logger } from "../../common/logger.js";
 import { env } from "../../config/env.js";
-import { query } from "../../db/pool.js";
+import { type QueryResult } from "pg";
+
+import { withOrgContext } from "../../db/pool.js";
 import {
   ApiKeyExpiryAlertPayload,
   ContractCreatedNotificationPayload,
@@ -33,10 +35,10 @@ const statusRecipients: Partial<Record<ShipmentStatus, NotificationRecipientRole
 };
 
 export class NotificationService {
-  private readonly adminEmails: string[];
+  private readonly systemAdminEmails: string[];
 
   constructor() {
-    this.adminEmails = env.notificationAdminEmails;
+    this.systemAdminEmails = env.notificationAdminEmails;
 
     if (env.emailjsPublicKey) {
       emailjs.init({
@@ -50,7 +52,7 @@ export class NotificationService {
         has_service_id: Boolean(env.emailjsServiceId),
         has_template_id: Boolean(env.emailjsTemplateId),
         has_public_key: Boolean(env.emailjsPublicKey),
-        admin_email_count: this.adminEmails.length,
+        admin_email_count: this.systemAdminEmails.length,
       });
     }
   }
@@ -59,19 +61,27 @@ export class NotificationService {
     return Boolean(env.emailjsServiceId && env.emailjsTemplateId && env.emailjsPublicKey);
   }
 
-  private async findUsersByRoles(roles: NotificationRecipientRoles): Promise<string[]> {
+  private async findUsersByRoles(
+    roles: NotificationRecipientRoles,
+    organizationId: string,
+  ): Promise<string[]> {
     if (roles.length === 0) {
       return [];
     }
 
-    const result = await query<{ email: string }>(
-      `
-      SELECT email
-      FROM users
-      WHERE is_active = TRUE
-        AND role::text = ANY($1::text[])
-      `,
-      [roles],
+    const result = await withOrgContext<QueryResult<{ email: string }>>(
+      organizationId,
+      (client) =>
+        client.query<{ email: string }>(
+          `
+          SELECT email
+          FROM users
+          WHERE is_active = TRUE
+            AND role::text = ANY($1::text[])
+            AND organization_id = $2
+          `,
+          [roles, organizationId],
+        ),
     );
 
     return result.rows
@@ -107,7 +117,6 @@ export class NotificationService {
         event,
         subject: message.subject,
       });
-
       return "skipped_config";
     }
 
@@ -116,7 +125,6 @@ export class NotificationService {
         event,
         subject: message.subject,
       });
-
       return "skipped_no_recipients";
     }
 
@@ -136,7 +144,6 @@ export class NotificationService {
         subject: message.subject,
         recipients_count: message.to.length,
       });
-
       return "sent";
     } catch (error) {
       logger.error("Notification email dispatch failed", {
@@ -145,7 +152,6 @@ export class NotificationService {
         recipients: message.to,
         error,
       });
-
       return "failed";
     }
   }
@@ -155,23 +161,27 @@ export class NotificationService {
     roles: NotificationRecipientRoles;
     subject: string;
     html: string;
+    organizationId: string;
     extraRecipients?: string[];
   }): Promise<void> {
     try {
-      const roleRecipients = await this.findUsersByRoles(params.roles);
-      const recipients = this.uniqueRecipients(this.adminEmails, roleRecipients, params.extraRecipients);
-     
+      const roleRecipients = await this.findUsersByRoles(params.roles, params.organizationId);
+      const recipients = this.uniqueRecipients(
+        this.systemAdminEmails,
+        roleRecipients,
+        params.extraRecipients,
+      );
       const result = await this.sendEmail(params.event, {
         to: recipients,
         subject: params.subject,
         html: params.html,
       });
-
       if (result !== "sent") {
         logger.warn("Notification processing completed without successful send", {
           event: params.event,
           status: result,
           roles: params.roles,
+          organization_id: params.organizationId,
           recipients_count: recipients.length,
           subject: params.subject,
         });
@@ -181,6 +191,7 @@ export class NotificationService {
         event: params.event,
         subject: params.subject,
         roles: params.roles,
+        organization_id: params.organizationId,
         error,
       });
     }
@@ -190,6 +201,7 @@ export class NotificationService {
     await this.notifyByRoles({
       event: "shipment_created",
       roles: ["admin", "trader"],
+      organizationId: payload.organizationId,
       subject: `Shipment ${payload.shipmentNumber} planned`,
       html: shipmentCreatedTemplate(payload),
     });
@@ -202,13 +214,13 @@ export class NotificationService {
         event: "shipment_status_changed",
         status: payload.newStatus,
       });
-      
       return;
     }
 
     await this.notifyByRoles({
       event: "shipment_status_changed",
       roles,
+      organizationId: payload.organizationId,
       subject: `Shipment ${payload.shipmentNumber} is now ${payload.newStatus}`,
       html: shipmentStatusTemplate(payload),
     });
@@ -218,6 +230,7 @@ export class NotificationService {
     await this.notifyByRoles({
       event: "shipment_documents_ready",
       roles: ["admin", "compliance"],
+      organizationId: payload.organizationId,
       subject: `Documents ready for shipment ${payload.shipmentNumber}`,
       html: documentsReadyTemplate(payload),
     });
@@ -227,6 +240,7 @@ export class NotificationService {
     await this.notifyByRoles({
       event: "contract_created",
       roles: ["admin", "trader"],
+      organizationId: payload.organizationId,
       subject: `New contract ${payload.contractNumber} created`,
       html: contractCreatedTemplate(payload),
     });
@@ -236,6 +250,7 @@ export class NotificationService {
     await this.notifyByRoles({
       event: "contract_fully_allocated",
       roles: ["admin", "trader"],
+      organizationId: payload.organizationId,
       subject: `Contract ${payload.contractNumber} fully allocated`,
       html: contractFullyAllocatedTemplate(payload),
     });
@@ -245,6 +260,7 @@ export class NotificationService {
     await this.notifyByRoles({
       event: "stock_adjusted",
       roles: ["admin", "warehouse"],
+      organizationId: payload.organizationId,
       subject: `Stock adjustment on lot ${payload.lotCode}`,
       html: stockAdjustedTemplate(payload),
     });
@@ -254,6 +270,7 @@ export class NotificationService {
     await this.notifyByRoles({
       event: "contract_risk_alert",
       roles: ["admin", "trader"],
+      organizationId: payload.organizationId,
       subject: `Risk alert: contract ${payload.contractNumber} has ${Math.round(payload.unallocatedKg)} kg unallocated`,
       html: contractRiskTemplate(payload),
     });
@@ -263,6 +280,7 @@ export class NotificationService {
     await this.notifyByRoles({
       event: "api_key_expiring",
       roles: ["admin"],
+      organizationId: payload.organizationId,
       extraRecipients: [payload.ownerEmail],
       subject: `API key ${payload.keyName} expires in ${payload.daysToExpiry} day(s)`,
       html: apiKeyExpiringTemplate(payload),

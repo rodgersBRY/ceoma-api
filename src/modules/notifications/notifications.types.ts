@@ -2,27 +2,31 @@ import { UserRole } from "../../types/auth.js";
 
 export type ShipmentStatus = "planned" | "stuffed" | "cleared" | "on_vessel" | "completed";
 
-export type ShipmentCreatedNotificationPayload = {
+export type NotificationContext = {
+  organizationId: string;
+};
+
+export type ShipmentCreatedNotificationPayload = NotificationContext & {
   shipmentNumber: string;
   contractNumber: string;
   lotCodes: string[];
 };
 
-export type ShipmentStatusNotificationPayload = {
+export type ShipmentStatusNotificationPayload = NotificationContext & {
   shipmentNumber: string;
   contractNumber: string;
   newStatus: ShipmentStatus;
   actualDeparture?: string | null;
 };
 
-export type DocumentsReadyNotificationPayload = {
+export type DocumentsReadyNotificationPayload = NotificationContext & {
   shipmentNumber: string;
   contractNumber: string;
   buyerName: string;
   docTypes: string[];
 };
 
-export type ContractCreatedNotificationPayload = {
+export type ContractCreatedNotificationPayload = NotificationContext & {
   contractNumber: string;
   buyerName: string;
   quantityKg: number;
@@ -30,25 +34,25 @@ export type ContractCreatedNotificationPayload = {
   shipmentWindowEnd: string;
 };
 
-export type ContractFullyAllocatedNotificationPayload = {
+export type ContractFullyAllocatedNotificationPayload = NotificationContext & {
   contractNumber: string;
   allocatedKg: number;
 };
 
-export type StockAdjustedNotificationPayload = {
+export type StockAdjustedNotificationPayload = NotificationContext & {
   lotCode: string;
   adjustmentKg: number;
   reason: string;
   approvedBy: string;
 };
 
-export type ContractRiskAlertPayload = {
+export type ContractRiskAlertPayload = NotificationContext & {
   contractNumber: string;
   daysToWindowClose: number;
   unallocatedKg: number;
 };
 
-export type ApiKeyExpiryAlertPayload = {
+export type ApiKeyExpiryAlertPayload = NotificationContext & {
   keyName: string;
   keyPrefix: string;
   expiresAt: Date;

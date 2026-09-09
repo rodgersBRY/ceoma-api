@@ -7,15 +7,17 @@ import { query } from "../../db/pool.js";
 import { AuthContext, UserRole } from "../../types/auth.js";
 
 type UserRow = {
-  id: number;
+  id: string;
   role: UserRole;
   is_active: boolean;
+  organization_id: string;
 };
 
 type ApiKeyRow = {
   id: string;
-  user_id: number;
+  user_id: string;
   role: UserRole;
+  organization_id: string;
 };
 
 function parseBearerToken(header: string | undefined): string | null {
@@ -66,19 +68,24 @@ async function resolveAuthContext(req: Request): Promise<AuthContext | undefined
     const claims = verifyAccessToken(bearer);
 
     const userResult = await query<UserRow>(
-      "SELECT id, role, is_active FROM users WHERE id = $1",
-      [Number(claims.sub)],
+      "SELECT id, role, is_active, organization_id FROM users WHERE id = $1",
+      [claims.sub],
     );
 
     if (userResult.rowCount === 0 || !userResult.rows[0].is_active) {
       throw new ApiError(401, "User is inactive or missing");
+    }
+    if (userResult.rows[0].organization_id !== claims.organizationId) {
+      throw new ApiError(401, "Organization mismatch");
     }
 
     const auth: AuthContext = {
       authType: "jwt",
       userId: userResult.rows[0].id,
       role: userResult.rows[0].role,
+      organizationId: userResult.rows[0].organization_id,
       sessionId: claims.sessionId,
+      impersonated: claims.impersonated === true,
     };
 
     return auth;
@@ -95,7 +102,8 @@ async function resolveAuthContext(req: Request): Promise<AuthContext | undefined
       SELECT
         ak.id,
         ak.user_id,
-        u.role
+        u.role,
+        u.organization_id
       FROM api_keys ak
       JOIN users u ON u.id = ak.user_id
       WHERE ak.key_hash = $1
@@ -119,6 +127,7 @@ async function resolveAuthContext(req: Request): Promise<AuthContext | undefined
       authType: "api_key",
       userId: row.user_id,
       role: row.role,
+      organizationId: row.organization_id,
       apiKeyId: row.id,
     };
 

@@ -6,23 +6,42 @@ import { contractsService } from "./contracts.service.js";
 import { allocationSchema, contractSchema } from "./contracts.validation.js";
 
 export class ContractsController {
+  private parseUuid(value: string | string[] | undefined, label: string): string {
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    const raw = String(rawValue ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(raw)) {
+      throw new ApiError(400, `Invalid ${label}`);
+    }
+    return raw;
+  }
+
   async createContract(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const payload = contractSchema.parse(req.body);
-    const contract = await contractsService.createContract(payload);
+    const contract = await contractsService.createContract(payload, req.auth);
     res.status(201).json(contract);
   }
 
   async allocateLot(req: Request, res: Response): Promise<void> {
-    const contractId = Number(req.params.contractId);
-    if (!Number.isFinite(contractId) || contractId <= 0) {
-      throw new ApiError(400, "Invalid contractId");
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
     }
+    const contractId = this.parseUuid(req.params.contractId, "contractId");
     const payload = allocationSchema.parse(req.body);
-    const allocation = await contractsService.allocateLot(contractId, payload);
+    const allocation = await contractsService.allocateLot(
+      contractId,
+      payload,
+      req.auth,
+    );
     res.status(201).json(allocation);
   }
 
   async getDashboard(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
     const query = parseListQuery(req.query as Record<string, unknown>, {
       allowedSortBy: [
         "id",
@@ -37,12 +56,15 @@ export class ContractsController {
       ],
       defaultSortBy: "created_at",
     });
-    const dashboard = await contractsService.getDashboard(query);
+    const dashboard = await contractsService.getDashboard(query, req.auth);
     res.json(dashboard);
   }
 
-  async getReferenceData(_req: Request, res: Response): Promise<void> {
-    const data = await contractsService.getReferenceData();
+  async getReferenceData(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
+    const data = await contractsService.getReferenceData(req.auth);
     res.json(data);
   }
 }

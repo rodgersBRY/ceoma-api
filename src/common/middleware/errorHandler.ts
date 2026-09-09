@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { MulterError } from "multer";
 import { ZodError } from "zod";
 
 import { env } from "../../config/env.js";
@@ -31,6 +32,15 @@ export function errorHandler(
       message: error.message,
     });
   }
+  if (error instanceof MulterError) {
+    const message =
+      error.code === "LIMIT_FILE_SIZE"
+        ? "File exceeds the maximum upload size"
+        : error.code === "LIMIT_UNEXPECTED_FILE"
+          ? "Unexpected file field or file type"
+          : "File upload error";
+    return res.status(400).json({ message });
+  }
 
   const pgError = error as PgError;
   if (pgError?.code === "23505") {
@@ -51,7 +61,9 @@ export function errorHandler(
     return res.status(500).json({
       message: "Database schema is out of date. Run Prisma migrations.",
       request_id: _req.requestId ?? null,
-      ...(env.nodeEnv === "development" ? { detail: pgError.message ?? null } : {}),
+      ...(env.nodeEnv === "development"
+        ? { detail: pgError.message ?? null }
+        : {}),
     });
   }
 
@@ -59,7 +71,9 @@ export function errorHandler(
     return res.status(500).json({
       message: "Database connection configuration is invalid.",
       request_id: _req.requestId ?? null,
-      ...(env.nodeEnv === "development" ? { detail: pgError.message ?? null } : {}),
+      ...(env.nodeEnv === "development"
+        ? { detail: pgError.message ?? null }
+        : {}),
     });
   }
 

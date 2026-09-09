@@ -4,17 +4,32 @@ import { ApiError } from "../../common/errors/ApiError.js";
 import { traceabilityService } from "./traceability.service.js";
 
 export class TraceabilityController {
-  async getLotTraceability(req: Request, res: Response): Promise<void> {
-    const lotId = Number(req.params.lotId);
-    if (!Number.isFinite(lotId) || lotId <= 0) {
-      throw new ApiError(400, "Invalid lotId");
+  private parseUuid(value: string | string[] | undefined, label: string): string {
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    const raw = String(rawValue ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(raw)) {
+      throw new ApiError(400, `Invalid ${label}`);
     }
-    const data = await traceabilityService.getLotTraceability(lotId);
+    return raw;
+  }
+
+  async getLotTraceability(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
+    const lotId = this.parseUuid(req.params.lotId, "lotId");
+    const data = await traceabilityService.getLotTraceability(
+      lotId,
+      req.auth,
+    );
     res.json(data);
   }
 
-  async getReferenceData(_req: Request, res: Response): Promise<void> {
-    const data = await traceabilityService.getReferenceData();
+  async getReferenceData(req: Request, res: Response): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
+    const data = await traceabilityService.getReferenceData(req.auth);
     res.json(data);
   }
 }

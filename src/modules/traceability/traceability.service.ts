@@ -1,9 +1,14 @@
 import { ApiError } from "../../common/errors/ApiError.js";
-import { query } from "../../db/pool.js";
+import { withActor } from "../../db/pool.js";
+import { AuthContext } from "../../types/auth.js";
 
 export class TraceabilityService {
-  async getLotTraceability(lotId: number): Promise<unknown> {
-    const lotResult = await query("SELECT * FROM lots WHERE id = $1", [lotId]);
+  async getLotTraceability(lotId: string, actor: AuthContext): Promise<unknown> {
+    const lotResult = await withActor(
+      actor,
+      "SELECT * FROM lots WHERE id = $1 AND organization_id = $2",
+      [lotId, actor.organizationId],
+    );
     if (lotResult.rowCount === 0) {
       throw new ApiError(404, `Lot ${lotId} not found`);
     }
@@ -11,7 +16,11 @@ export class TraceabilityService {
 
     let procurement: Record<string, unknown> = {};
     if (String(lot.source) === "auction") {
-      const auctionResult = await query("SELECT * FROM auction_procurements WHERE lot_id = $1", [lotId]);
+      const auctionResult = await withActor(
+        actor,
+        "SELECT * FROM auction_procurements WHERE lot_id = $1 AND organization_id = $2",
+        [lotId, actor.organizationId],
+      );
       const auction = auctionResult.rows[0];
       procurement = {
         source: "auction",
@@ -20,10 +29,18 @@ export class TraceabilityService {
         catalog_document_path: auction?.catalog_document_path ?? null,
       };
     } else {
-      const deliveryResult = await query("SELECT * FROM direct_deliveries WHERE lot_id = $1", [lotId]);
+      const deliveryResult = await withActor(
+        actor,
+        "SELECT * FROM direct_deliveries WHERE lot_id = $1 AND organization_id = $2",
+        [lotId, actor.organizationId],
+      );
       const delivery = deliveryResult.rows[0];
       const agreementResult = delivery
-        ? await query("SELECT * FROM direct_agreements WHERE id = $1", [delivery.agreement_id])
+        ? await withActor(
+            actor,
+            "SELECT * FROM direct_agreements WHERE id = $1 AND organization_id = $2",
+            [delivery.agreement_id, actor.organizationId],
+          )
         : { rows: [] };
       const agreement = agreementResult.rows[0];
       procurement = {
@@ -39,25 +56,34 @@ export class TraceabilityService {
       };
     }
 
-    const allocationsResult = await query("SELECT * FROM allocations WHERE lot_id = $1 ORDER BY id", [lotId]);
+    const allocationsResult = await withActor(
+      actor,
+      "SELECT * FROM allocations WHERE lot_id = $1 AND organization_id = $2 ORDER BY id",
+      [lotId, actor.organizationId],
+    );
     const shipmentIds = Array.from(
       new Set(
         allocationsResult.rows
           .map((row: Record<string, unknown>) =>
-            row.shipment_id ? Number(row.shipment_id) : null,
+            row.shipment_id ? String(row.shipment_id) : null,
           )
-          .filter((id: number | null): id is number => id !== null),
+          .filter((id: string | null): id is string => id !== null),
       ),
     );
     const shipmentsResult =
       shipmentIds.length > 0
-        ? await query("SELECT * FROM shipments WHERE id = ANY($1::int[]) ORDER BY id", [shipmentIds])
+        ? await withActor(
+            actor,
+            "SELECT * FROM shipments WHERE id = ANY($1::uuid[]) AND organization_id = $2 ORDER BY id",
+            [shipmentIds, actor.organizationId],
+          )
         : { rows: [] };
     const docsResult =
       shipmentIds.length > 0
-        ? await query(
-            "SELECT * FROM shipment_documents WHERE shipment_id = ANY($1::int[]) ORDER BY id",
-            [shipmentIds],
+        ? await withActor(
+            actor,
+            "SELECT * FROM shipment_documents WHERE shipment_id = ANY($1::uuid[]) AND organization_id = $2 ORDER BY id",
+            [shipmentIds, actor.organizationId],
           )
         : { rows: [] };
 
@@ -70,14 +96,17 @@ export class TraceabilityService {
     };
   }
 
-  async getReferenceData(): Promise<unknown> {
-    const lotsResult = await query(
+  async getReferenceData(actor: AuthContext): Promise<unknown> {
+    const lotsResult = await withActor(
+      actor,
       `
       SELECT id, lot_code, source, status, crop_year
       FROM lots
+      WHERE organization_id = $1
       ORDER BY created_at DESC, id DESC
       LIMIT 1000
       `,
+      [actor.organizationId],
     );
 
     return {

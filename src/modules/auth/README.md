@@ -34,8 +34,11 @@ Provides API authentication and authorization controls:
 ## Configuration Notes
 
 - First registered user is auto-assigned `admin` role (bootstrap flow).
+- Bootstrap registration also creates the first organization and subscription.
 - Passwords are hashed with Argon2id.
 - Access/refresh tokens are JWTs with separate secrets.
+- JWT payloads include `organizationId` for tenant scoping.
 - Refresh tokens are tied to DB sessions and rotated on refresh.
 - API keys are never stored in plaintext; only SHA-256 hashes are persisted.
 - Session metadata (IP/user-agent) is encrypted before persistence.
+- User creation and API key issuance are guarded by plan limits.

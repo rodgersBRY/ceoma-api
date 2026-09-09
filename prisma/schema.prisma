@@ -38,6 +38,11 @@ enum ContractStatus {
   closed
 }
 
+enum OrganizationStatus {
+  active
+  suspended
+}
+
 enum AllocationStatus {
   allocated
   shipped
@@ -73,26 +78,136 @@ enum UserRole {
   compliance
 }
 
+enum PlanTier {
+  starter
+  growth
+  enterprise
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  cancelled
+}
+
+model Organization {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String             @unique
+  country     String?
+  status      OrganizationStatus @default(active)
+  onboardedBy String?            @map("onboarded_by") @db.Uuid
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  users               User[]
+  subscription        Subscription?
+  suppliers           Supplier[]
+  buyers              Buyer[]
+  warehouses          Warehouse[]
+  grades              Grade[]
+  bagTypes            BagType[]
+  lots                Lot[]
+  contracts           Contract[]
+  shipments           Shipment[]
+  costEntries         CostEntry[]
+  auctionProcurements AuctionProcurement[]
+  directAgreements    DirectAgreement[]
+  directDeliveries    DirectDelivery[]
+  allocations         Allocation[]
+  shipmentDocuments   ShipmentDocument[]
+  stockAdjustments    StockAdjustment[]
+  notes               OrgNote[]
+  impersonationLogs   ImpersonationLog[]
+  onboardedByAdmin    SuperAdmin?          @relation("org_onboarded_by", fields: [onboardedBy], references: [id])
+
+  @@index([status], map: "idx_org_status")
+  @@map("organizations")
+}
+
+model SuperAdmin {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  notes          OrgNote[]
+  impersonations ImpersonationLog[]
+  onboardedOrgs  Organization[]     @relation("org_onboarded_by")
+
+  @@map("super_admins")
+}
+
+model OrgNote {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  superAdminId   String   @map("super_admin_id") @db.Uuid
+  note           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  superAdmin   SuperAdmin   @relation(fields: [superAdminId], references: [id])
+
+  @@index([organizationId], map: "idx_org_notes_org")
+  @@index([superAdminId], map: "idx_org_notes_admin")
+  @@map("org_notes")
+}
+
+model ImpersonationLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  superAdminId   String   @map("super_admin_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  superAdmin   SuperAdmin   @relation(fields: [superAdminId], references: [id])
+
+  @@index([organizationId], map: "idx_impersonation_org")
+  @@index([superAdminId], map: "idx_impersonation_admin")
+  @@map("impersonation_logs")
+}
+
+model Subscription {
+  id               String             @id @default(uuid()) @db.Uuid
+  organizationId   String             @unique @map("organization_id") @db.Uuid
+  plan             PlanTier           @default(starter)
+  status           SubscriptionStatus @default(trialing)
+  stripeCustomerId String?            @map("stripe_customer_id")
+  stripeSubId      String?            @unique @map("stripe_sub_id")
+  trialEndsAt      DateTime?          @map("trial_ends_at")
+  currentPeriodEnd DateTime?          @map("current_period_end")
+  cancelledAt      DateTime?          @map("cancelled_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("subscriptions")
+}
+
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  fullName     String    @map("full_name")
-  role         UserRole  @default(trader)
-  isActive     Boolean   @default(true) @map("is_active")
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+  id             String    @id @default(uuid()) @db.Uuid
+  email          String    @unique
+  passwordHash   String    @map("password_hash")
+  fullName       String    @map("full_name")
+  role           UserRole  @default(trader)
+  isActive       Boolean   @default(true) @map("is_active")
+  lastLoginAt    DateTime? @map("last_login_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+  organizationId String    @map("organization_id") @db.Uuid
 
-  sessions UserSession[]
-  apiKeys  ApiKey[]
+  sessions     UserSession[]
+  apiKeys      ApiKey[]
+  organization Organization  @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_users_org")
   @@map("users")
 }
 
 model UserSession {
-  id                 String    @id @db.Uuid
-  userId             Int       @map("user_id")
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
   refreshTokenHash   String    @map("refresh_token_hash")
   ipAddressEncrypted String    @map("ip_address_encrypted")
   userAgentEncrypted String    @map("user_agent_encrypted")
@@ -107,8 +222,8 @@ model UserSession {
 }
 
 model ApiKey {
-  id         String    @id @db.Uuid
-  userId     Int       @map("user_id")
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
   name       String
   keyHash    String    @unique @map("key_hash")
   keyPrefix  String    @map("key_prefix")
@@ -125,7 +240,7 @@ model ApiKey {
 }
 
 model IdempotencyKey {
-  id                  String            @id @db.Uuid
+  id                  String            @id @default(uuid()) @db.Uuid
   idempotencyKey      String            @map("idempotency_key")
   actorScope          String            @map("actor_scope")
   requestMethod       String            @map("request_method")
@@ -145,69 +260,84 @@ model IdempotencyKey {
 }
 
 model Supplier {
-  id           Int          @id @default(autoincrement())
-  name         String
-  supplierType SupplierType @map("supplier_type")
-  country      String?
-  createdAt    DateTime     @default(now()) @map("created_at")
+  id             String       @id @default(uuid()) @db.Uuid
+  name           String
+  supplierType   SupplierType @map("supplier_type")
+  country        String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId String       @map("organization_id") @db.Uuid
 
   lots             Lot[]
   directAgreements DirectAgreement[]
   auctionRecords   AuctionProcurement[] @relation("auction_marketing_agent")
+  organization     Organization         @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_suppliers_org")
   @@map("suppliers")
 }
 
 model Buyer {
-  id        Int        @id @default(autoincrement())
-  name      String
-  country   String?
-  createdAt DateTime   @default(now()) @map("created_at")
-  contracts Contract[]
+  id             String       @id @default(uuid()) @db.Uuid
+  name           String
+  country        String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId String       @map("organization_id") @db.Uuid
+  contracts      Contract[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_buyers_org")
   @@map("buyers")
 }
 
 model Warehouse {
-  id        Int      @id @default(autoincrement())
-  name      String
-  location  String?
-  createdAt DateTime @default(now()) @map("created_at")
-  lots      Lot[]
+  id             String       @id @default(uuid()) @db.Uuid
+  name           String
+  location       String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId String       @map("organization_id") @db.Uuid
+  lots           Lot[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_warehouses_org")
   @@map("warehouses")
 }
 
 model Grade {
-  id          Int        @id @default(autoincrement())
-  code        String
-  description String?
-  createdAt   DateTime   @default(now()) @map("created_at")
-  lots        Lot[]
-  contracts   Contract[]
+  id             String       @id @default(uuid()) @db.Uuid
+  code           String
+  description    String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId String       @map("organization_id") @db.Uuid
+  lots           Lot[]
+  contracts      Contract[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_grades_org")
   @@map("grades")
 }
 
 model BagType {
-  id        Int      @id @default(autoincrement())
-  name      String
-  weightKg  Decimal  @map("weight_kg") @db.Decimal(10, 3)
-  createdAt DateTime @default(now()) @map("created_at")
-  lots      Lot[]
+  id             String       @id @default(uuid()) @db.Uuid
+  name           String
+  weightKg       Decimal      @map("weight_kg") @db.Decimal(10, 3)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId String       @map("organization_id") @db.Uuid
+  lots           Lot[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_bag_types_org")
   @@map("bag_types")
 }
 
 model Lot {
-  id                  Int       @id @default(autoincrement())
-  lotCode             String    @unique @map("lot_code")
+  id                  String    @id @default(uuid()) @db.Uuid
+  lotCode             String    @map("lot_code")
   source              LotSource
   sourceReference     String    @map("source_reference")
-  supplierId          Int       @map("supplier_id")
-  gradeId             Int       @map("grade_id")
-  warehouseId         Int       @map("warehouse_id")
-  bagTypeId           Int       @map("bag_type_id")
+  supplierId          String    @map("supplier_id") @db.Uuid
+  gradeId             String    @map("grade_id") @db.Uuid
+  warehouseId         String    @map("warehouse_id") @db.Uuid
+  bagTypeId           String    @map("bag_type_id") @db.Uuid
   cropYear            String    @map("crop_year")
   bagsTotal           Int       @map("bags_total")
   weightTotalKg       Decimal   @map("weight_total_kg") @db.Decimal(12, 3)
@@ -217,6 +347,7 @@ model Lot {
   additionalCostTotal Decimal   @default(0) @map("additional_cost_total") @db.Decimal(14, 2)
   status              LotStatus
   createdAt           DateTime  @default(now()) @map("created_at")
+  organizationId      String    @map("organization_id") @db.Uuid
 
   supplier         Supplier            @relation(fields: [supplierId], references: [id])
   grade            Grade               @relation(fields: [gradeId], references: [id])
@@ -227,64 +358,76 @@ model Lot {
   allocations      Allocation[]
   costEntries      CostEntry[]
   stockAdjustments StockAdjustment[]
+  organization     Organization        @relation(fields: [organizationId], references: [id])
 
+  @@unique([organizationId, lotCode], map: "uniq_lots_org_code")
   @@index([source], map: "idx_lots_source")
   @@index([status], map: "idx_lots_status")
+  @@index([organizationId], map: "idx_lots_org")
   @@map("lots")
 }
 
 model AuctionProcurement {
-  id                  Int      @id @default(autoincrement())
-  lotId               Int      @unique @map("lot_id")
+  id                  String   @id @default(uuid()) @db.Uuid
+  lotId               String   @unique @map("lot_id") @db.Uuid
   auctionLotNumber    String   @map("auction_lot_number")
-  marketingAgentId    Int      @map("marketing_agent_id")
+  marketingAgentId    String   @map("marketing_agent_id") @db.Uuid
   catalogDocumentPath String?  @map("catalog_document_path")
   immutable           Boolean  @default(true)
   createdAt           DateTime @default(now()) @map("created_at")
+  organizationId      String   @map("organization_id") @db.Uuid
 
-  lot            Lot      @relation(fields: [lotId], references: [id])
-  marketingAgent Supplier @relation("auction_marketing_agent", fields: [marketingAgentId], references: [id])
+  lot            Lot          @relation(fields: [lotId], references: [id])
+  marketingAgent Supplier     @relation("auction_marketing_agent", fields: [marketingAgentId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_auction_procurements_org")
   @@map("auction_procurements")
 }
 
 model DirectAgreement {
-  id                 Int      @id @default(autoincrement())
-  supplierId         Int      @map("supplier_id")
+  id                 String   @id @default(uuid()) @db.Uuid
+  supplierId         String   @map("supplier_id") @db.Uuid
   agreementReference String   @map("agreement_reference")
   agreedPricePerKg   Decimal  @map("agreed_price_per_kg") @db.Decimal(12, 4)
   currency           String   @default("USD")
   cropYear           String   @map("crop_year")
   createdAt          DateTime @default(now()) @map("created_at")
+  organizationId     String   @map("organization_id") @db.Uuid
 
-  supplier   Supplier         @relation(fields: [supplierId], references: [id])
-  deliveries DirectDelivery[]
+  supplier     Supplier         @relation(fields: [supplierId], references: [id])
+  deliveries   DirectDelivery[]
+  organization Organization     @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_direct_agreements_org")
   @@map("direct_agreements")
 }
 
 model DirectDelivery {
-  id                Int      @id @default(autoincrement())
-  agreementId       Int      @map("agreement_id")
-  lotId             Int      @unique @map("lot_id")
+  id                String   @id @default(uuid()) @db.Uuid
+  agreementId       String   @map("agreement_id") @db.Uuid
+  lotId             String   @unique @map("lot_id") @db.Uuid
   deliveryReference String   @map("delivery_reference")
   receivedAt        DateTime @default(now()) @map("received_at")
   moisturePercent   Decimal  @map("moisture_percent") @db.Decimal(8, 3)
   screenSize        Decimal  @map("screen_size") @db.Decimal(8, 3)
   defectsPercent    Decimal  @map("defects_percent") @db.Decimal(8, 3)
   createdAt         DateTime @default(now()) @map("created_at")
+  organizationId    String   @map("organization_id") @db.Uuid
 
-  agreement DirectAgreement @relation(fields: [agreementId], references: [id])
-  lot       Lot             @relation(fields: [lotId], references: [id])
+  agreement    DirectAgreement @relation(fields: [agreementId], references: [id])
+  lot          Lot             @relation(fields: [lotId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_direct_deliveries_org")
   @@map("direct_deliveries")
 }
 
 model Contract {
-  id                  Int            @id @default(autoincrement())
-  contractNumber      String         @unique @map("contract_number")
-  buyerId             Int            @map("buyer_id")
-  gradeId             Int?           @map("grade_id")
+  id                  String         @id @default(uuid()) @db.Uuid
+  contractNumber      String         @map("contract_number")
+  buyerId             String         @map("buyer_id") @db.Uuid
+  gradeId             String?        @map("grade_id") @db.Uuid
   quantityKg          Decimal        @map("quantity_kg") @db.Decimal(12, 3)
   pricePerKg          Decimal        @map("price_per_kg") @db.Decimal(12, 4)
   priceTerms          PriceTerms     @map("price_terms")
@@ -295,19 +438,23 @@ model Contract {
   shippedKg           Decimal        @default(0) @map("shipped_kg") @db.Decimal(12, 3)
   status              ContractStatus @default(open)
   createdAt           DateTime       @default(now()) @map("created_at")
+  organizationId      String         @map("organization_id") @db.Uuid
 
-  buyer       Buyer        @relation(fields: [buyerId], references: [id])
-  grade       Grade?       @relation(fields: [gradeId], references: [id])
-  allocations Allocation[]
-  shipments   Shipment[]
+  buyer        Buyer        @relation(fields: [buyerId], references: [id])
+  grade        Grade?       @relation(fields: [gradeId], references: [id])
+  allocations  Allocation[]
+  shipments    Shipment[]
+  organization Organization @relation(fields: [organizationId], references: [id])
 
+  @@unique([organizationId, contractNumber], map: "uniq_contracts_org_number")
+  @@index([organizationId], map: "idx_contracts_org")
   @@map("contracts")
 }
 
 model Shipment {
-  id                   Int            @id @default(autoincrement())
-  shipmentNumber       String         @unique @map("shipment_number")
-  contractId           Int            @map("contract_id")
+  id                   String         @id @default(uuid()) @db.Uuid
+  shipmentNumber       String         @map("shipment_number")
+  contractId           String         @map("contract_id") @db.Uuid
   status               ShipmentStatus @default(planned)
   containerNumber      String?        @map("container_number")
   sealNumber           String?        @map("seal_number")
@@ -315,72 +462,88 @@ model Shipment {
   actualDeparture      DateTime?      @map("actual_departure") @db.Date
   traceabilitySnapshot Json           @default("{}") @map("traceability_snapshot")
   createdAt            DateTime       @default(now()) @map("created_at")
+  organizationId       String         @map("organization_id") @db.Uuid
 
-  contract    Contract           @relation(fields: [contractId], references: [id])
-  allocations Allocation[]
-  documents   ShipmentDocument[]
-  costs       CostEntry[]
+  contract     Contract           @relation(fields: [contractId], references: [id])
+  allocations  Allocation[]
+  documents    ShipmentDocument[]
+  costs        CostEntry[]
+  organization Organization       @relation(fields: [organizationId], references: [id])
 
+  @@unique([organizationId, shipmentNumber], map: "uniq_shipments_org_number")
   @@index([contractId], map: "idx_shipments_contract")
+  @@index([organizationId], map: "idx_shipments_org")
   @@map("shipments")
 }
 
 model Allocation {
-  id          Int              @id @default(autoincrement())
-  contractId  Int              @map("contract_id")
-  lotId       Int              @map("lot_id")
-  allocatedKg Decimal          @map("allocated_kg") @db.Decimal(12, 3)
-  status      AllocationStatus @default(allocated)
-  shipmentId  Int?             @map("shipment_id")
-  createdAt   DateTime         @default(now()) @map("created_at")
+  id             String           @id @default(uuid()) @db.Uuid
+  contractId     String           @map("contract_id") @db.Uuid
+  lotId          String           @map("lot_id") @db.Uuid
+  allocatedKg    Decimal          @map("allocated_kg") @db.Decimal(12, 3)
+  status         AllocationStatus @default(allocated)
+  shipmentId     String?          @map("shipment_id") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at")
+  organizationId String           @map("organization_id") @db.Uuid
 
-  contract Contract  @relation(fields: [contractId], references: [id])
-  lot      Lot       @relation(fields: [lotId], references: [id])
-  shipment Shipment? @relation(fields: [shipmentId], references: [id])
+  contract     Contract     @relation(fields: [contractId], references: [id])
+  lot          Lot          @relation(fields: [lotId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([contractId], map: "idx_allocations_contract")
   @@index([lotId], map: "idx_allocations_lot")
   @@index([status], map: "idx_allocations_status")
+  @@index([organizationId], map: "idx_allocations_org")
   @@map("allocations")
 }
 
 model ShipmentDocument {
-  id           Int          @id @default(autoincrement())
-  shipmentId   Int          @map("shipment_id")
-  documentType DocumentType @map("document_type")
-  payload      Json         @default("{}")
-  createdAt    DateTime     @default(now()) @map("created_at")
+  id             String       @id @default(uuid()) @db.Uuid
+  shipmentId     String       @map("shipment_id") @db.Uuid
+  documentType   DocumentType @map("document_type")
+  payload        Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organizationId String       @map("organization_id") @db.Uuid
 
-  shipment Shipment @relation(fields: [shipmentId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_shipment_documents_org")
   @@map("shipment_documents")
 }
 
 model CostEntry {
-  id         Int      @id @default(autoincrement())
-  lotId      Int?     @map("lot_id")
-  shipmentId Int?     @map("shipment_id")
-  category   String
-  amount     Decimal  @db.Decimal(14, 2)
-  currency   String   @default("USD")
-  notes      String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  lotId          String?  @map("lot_id") @db.Uuid
+  shipmentId     String?  @map("shipment_id") @db.Uuid
+  category       String
+  amount         Decimal  @db.Decimal(14, 2)
+  currency       String   @default("USD")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  organizationId String   @map("organization_id") @db.Uuid
 
-  lot      Lot?      @relation(fields: [lotId], references: [id])
-  shipment Shipment? @relation(fields: [shipmentId], references: [id])
+  lot          Lot?         @relation(fields: [lotId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_cost_entries_org")
   @@map("cost_entries")
 }
 
 model StockAdjustment {
-  id           Int      @id @default(autoincrement())
-  lotId        Int      @map("lot_id")
-  adjustmentKg Decimal  @map("adjustment_kg") @db.Decimal(12, 3)
-  reason       String
-  approvedBy   String   @map("approved_by")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  lotId          String   @map("lot_id") @db.Uuid
+  adjustmentKg   Decimal  @map("adjustment_kg") @db.Decimal(12, 3)
+  reason         String
+  approvedBy     String   @map("approved_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  organizationId String   @map("organization_id") @db.Uuid
 
-  lot Lot @relation(fields: [lotId], references: [id])
+  lot          Lot          @relation(fields: [lotId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId], map: "idx_stock_adjustments_org")
   @@map("stock_adjustments")
 }

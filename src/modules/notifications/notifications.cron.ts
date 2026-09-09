@@ -11,6 +11,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 let jobsRegistered = false;
 
 type ContractRiskRow = {
+  organization_id: string;
   contract_number: string;
   quantity_kg: string;
   allocated_kg: string;
@@ -18,6 +19,7 @@ type ContractRiskRow = {
 };
 
 type ApiKeyExpiryRow = {
+  organization_id: string;
   name: string;
   key_prefix: string;
   expires_at: Date;
@@ -28,10 +30,11 @@ function daysUntil(dateInput: Date): number {
   return Math.floor((dateInput.getTime() - Date.now()) / MS_PER_DAY);
 }
 
-async function sendContractRiskAlerts(): Promise<void> {
+export async function sendContractRiskAlerts(): Promise<void> {
   const result = await query<ContractRiskRow>(
     `
     SELECT
+      organization_id,
       contract_number,
       quantity_kg,
       allocated_kg,
@@ -49,8 +52,12 @@ async function sendContractRiskAlerts(): Promise<void> {
     const unallocatedKg = Math.max(quantityKg - allocatedKg, 0);
     const daysToWindowClose = daysUntil(new Date(row.shipment_window_end));
 
-    if (unallocatedKg > EPSILON && daysToWindowClose <= env.contractRiskAlertWindowDays) {
+    if (
+      unallocatedKg > EPSILON &&
+      daysToWindowClose <= env.contractRiskAlertWindowDays
+    ) {
       await notificationsService.notifyContractRiskAlert({
+        organizationId: row.organization_id,
         contractNumber: row.contract_number,
         daysToWindowClose,
         unallocatedKg,
@@ -65,10 +72,11 @@ async function sendContractRiskAlerts(): Promise<void> {
   }
 }
 
-async function sendApiKeyExpiryAlerts(): Promise<void> {
+export async function sendApiKeyExpiryAlerts(): Promise<void> {
   const result = await query<ApiKeyExpiryRow>(
     `
     SELECT
+      u.organization_id,
       ak.name,
       ak.key_prefix,
       ak.expires_at,
@@ -90,9 +98,13 @@ async function sendApiKeyExpiryAlerts(): Promise<void> {
 
   for (const row of result.rows) {
     const expiresAt = new Date(row.expires_at);
-    const daysToExpiry = Math.max(Math.ceil((expiresAt.getTime() - Date.now()) / MS_PER_DAY), 0);
+    const daysToExpiry = Math.max(
+      Math.ceil((expiresAt.getTime() - Date.now()) / MS_PER_DAY),
+      0,
+    );
 
     await notificationsService.notifyApiKeyExpiring({
+      organizationId: row.organization_id,
       keyName: row.name,
       keyPrefix: row.key_prefix,
       expiresAt,
@@ -103,11 +115,17 @@ async function sendApiKeyExpiryAlerts(): Promise<void> {
   }
 
   if (alertsSent > 0) {
-    logger.info("API key expiry alerts dispatched", { alerts_sent: alertsSent });
+    logger.info("API key expiry alerts dispatched", {
+      alerts_sent: alertsSent,
+    });
   }
 }
 
-function scheduleTask(name: string, schedule: string, task: () => Promise<void>): void {
+function scheduleTask(
+  name: string,
+  schedule: string,
+  task: () => Promise<void>,
+): void {
   if (!cron.validate(schedule)) {
     logger.error("Invalid cron schedule. Notification task skipped", {
       task: name,
@@ -146,6 +164,14 @@ export function registerNotificationCrons(): void {
     return;
   }
 
-  scheduleTask("contract_risk_alerts", env.contractRiskCronSchedule, sendContractRiskAlerts);
-  scheduleTask("api_key_expiry_alerts", env.apiKeyExpiryCronSchedule, sendApiKeyExpiryAlerts);
+  scheduleTask(
+    "contract_risk_alerts",
+    env.contractRiskCronSchedule,
+    sendContractRiskAlerts,
+  );
+  scheduleTask(
+    "api_key_expiry_alerts",
+    env.apiKeyExpiryCronSchedule,
+    sendApiKeyExpiryAlerts,
+  );
 }

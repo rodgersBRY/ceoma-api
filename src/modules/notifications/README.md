@@ -25,6 +25,7 @@ Sends operational email notifications after successful business actions and runs
 ## Configuration Notes
 
 - Notifications are email-only.
-- Email provider uses Emailjs (`@emailjs/nodejs`).
+- Email provider uses EmailJS (`@emailjs/nodejs`).
 - Notification dispatch is called after transactional writes complete, avoiding phantom alerts.
 - Cron jobs are enabled/disabled via env config and run in configured timezone.
+- Recipients are resolved per organization (active users by role), with optional global system recipients via `NOTIFICATION_ADMIN_EMAILS`.

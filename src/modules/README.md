@@ -18,6 +18,7 @@ Current modules:
 - `finance`
 - `traceability`
 - `notifications`
+- `internal` (super admin)
 
 Shared API standards across modules:
 

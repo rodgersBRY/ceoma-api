@@ -1,12 +1,15 @@
+import crypto from "node:crypto";
+
 import { ApiError } from "../../common/errors/ApiError.js";
 import { ensureReference } from "../../common/dbHelpers.js";
 import {
   ListQueryParams,
   buildPaginatedResult,
   escapeLikeQuery,
-  toIntFilter,
+  toUuidFilter,
 } from "../../common/pagination.js";
-import { query, withTransaction } from "../../db/pool.js";
+import { withActor, withTransaction } from "../../db/pool.js";
+import { AuthContext } from "../../types/auth.js";
 import {
   AuctionLotInput,
   DirectAgreementInput,
@@ -14,11 +17,11 @@ import {
 } from "./procurement.validation.js";
 
 export class ProcurementService {
-  async createAuctionLot(input: AuctionLotInput): Promise<unknown> {
+  async createAuctionLot(input: AuctionLotInput, actor: AuthContext): Promise<unknown> {
     return withTransaction(async (client) => {
       const supplierResult = await client.query(
-        "SELECT supplier_type FROM suppliers WHERE id = $1",
-        [input.marketing_agent_id],
+        "SELECT supplier_type FROM suppliers WHERE id = $1 AND organization_id = $2",
+        [input.marketing_agent_id, actor.organizationId],
       );
       if (supplierResult.rowCount === 0) {
         throw new ApiError(404, `Supplier ${input.marketing_agent_id} not found`);
@@ -31,21 +34,23 @@ export class ProcurementService {
         );
       }
 
-      await ensureReference(client, "grades", input.grade_id, "Grade");
-      await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse");
-      await ensureReference(client, "bag_types", input.bag_type_id, "Bag type");
+      await ensureReference(client, "grades", input.grade_id, "Grade", actor.organizationId);
+      await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse", actor.organizationId);
+      await ensureReference(client, "bag_types", input.bag_type_id, "Bag type", actor.organizationId);
 
+      const lotId = crypto.randomUUID();
       const lotResult = await client.query(
         `
         INSERT INTO lots (
-          lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
+          id, lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
           bags_total, weight_total_kg, weight_available_kg, purchase_price_per_kg,
-          auction_fees_total, additional_cost_total, status
+          auction_fees_total, additional_cost_total, status, organization_id
         )
-        VALUES ($1, 'auction', $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, 0, 'in_stock')
+        VALUES ($1, $2, 'auction', $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $12, 0, 'in_stock', $13)
         RETURNING *;
         `,
         [
+          lotId,
           input.lot_number,
           input.lot_number,
           input.marketing_agent_id,
@@ -57,6 +62,7 @@ export class ProcurementService {
           input.weight_total_kg,
           input.purchase_price_per_kg,
           input.auction_fees_total,
+          actor.organizationId,
         ],
       );
       const insertedLot = lotResult.rows[0];
@@ -64,26 +70,28 @@ export class ProcurementService {
       await client.query(
         `
         INSERT INTO auction_procurements (
-          lot_id, auction_lot_number, marketing_agent_id, catalog_document_path, immutable
+          id, lot_id, auction_lot_number, marketing_agent_id, catalog_document_path, immutable, organization_id
         )
-        VALUES ($1, $2, $3, $4, TRUE);
+        VALUES ($1, $2, $3, $4, $5, TRUE, $6);
         `,
         [
+          crypto.randomUUID(),
           insertedLot.id,
           input.lot_number,
           input.marketing_agent_id,
           input.catalog_document_path ?? null,
+          actor.organizationId,
         ],
       );
       return insertedLot;
-    });
+    }, actor);
   }
 
-  async createDirectAgreement(input: DirectAgreementInput): Promise<unknown> {
+  async createDirectAgreement(input: DirectAgreementInput, actor: AuthContext): Promise<unknown> {
     return withTransaction(async (client) => {
       const supplierResult = await client.query(
-        "SELECT supplier_type FROM suppliers WHERE id = $1",
-        [input.supplier_id],
+        "SELECT supplier_type FROM suppliers WHERE id = $1 AND organization_id = $2",
+        [input.supplier_id, actor.organizationId],
       );
       if (supplierResult.rowCount === 0) {
         throw new ApiError(404, `Supplier ${input.supplier_id} not found`);
@@ -96,53 +104,58 @@ export class ProcurementService {
         );
       }
 
+      const agreementId = crypto.randomUUID();
       const result = await client.query(
         `
         INSERT INTO direct_agreements (
-          supplier_id, agreement_reference, agreed_price_per_kg, currency, crop_year
+          id, supplier_id, agreement_reference, agreed_price_per_kg, currency, crop_year, organization_id
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *;
         `,
         [
+          agreementId,
           input.supplier_id,
           input.agreement_reference,
           input.agreed_price_per_kg,
           input.currency,
           input.crop_year,
+          actor.organizationId,
         ],
       );
       return result.rows[0];
-    });
+    }, actor);
   }
 
-  async createDirectDelivery(input: DirectDeliveryInput): Promise<unknown> {
+  async createDirectDelivery(input: DirectDeliveryInput, actor: AuthContext): Promise<unknown> {
     return withTransaction(async (client) => {
       const agreementResult = await client.query(
-        "SELECT * FROM direct_agreements WHERE id = $1",
-        [input.agreement_id],
+        "SELECT * FROM direct_agreements WHERE id = $1 AND organization_id = $2",
+        [input.agreement_id, actor.organizationId],
       );
       if (agreementResult.rowCount === 0) {
         throw new ApiError(404, `Direct agreement ${input.agreement_id} not found`);
       }
       const agreement = agreementResult.rows[0];
 
-      await ensureReference(client, "grades", input.grade_id, "Grade");
-      await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse");
-      await ensureReference(client, "bag_types", input.bag_type_id, "Bag type");
+      await ensureReference(client, "grades", input.grade_id, "Grade", actor.organizationId);
+      await ensureReference(client, "warehouses", input.warehouse_id, "Warehouse", actor.organizationId);
+      await ensureReference(client, "bag_types", input.bag_type_id, "Bag type", actor.organizationId);
 
       const additionalCost = input.processing_cost_total + input.transport_cost_total;
+      const lotId = crypto.randomUUID();
       const lotResult = await client.query(
         `
         INSERT INTO lots (
-          lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
+          id, lot_code, source, source_reference, supplier_id, grade_id, warehouse_id, bag_type_id, crop_year,
           bags_total, weight_total_kg, weight_available_kg, purchase_price_per_kg,
-          auction_fees_total, additional_cost_total, status
+          auction_fees_total, additional_cost_total, status, organization_id
         )
-        VALUES ($1, 'direct', $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, 0, $11, 'in_stock')
+        VALUES ($1, $2, 'direct', $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, 0, $12, 'in_stock', $13)
         RETURNING *;
         `,
         [
+          lotId,
           input.internal_lot_id,
           input.delivery_reference,
           agreement.supplier_id,
@@ -154,6 +167,7 @@ export class ProcurementService {
           input.weight_total_kg,
           agreement.agreed_price_per_kg,
           additionalCost,
+          actor.organizationId,
         ],
       );
       const insertedLot = lotResult.rows[0];
@@ -161,27 +175,32 @@ export class ProcurementService {
       await client.query(
         `
         INSERT INTO direct_deliveries (
-          agreement_id, lot_id, delivery_reference, moisture_percent, screen_size, defects_percent
+          id, agreement_id, lot_id, delivery_reference, moisture_percent, screen_size, defects_percent, organization_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6);
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
         `,
         [
+          crypto.randomUUID(),
           input.agreement_id,
           insertedLot.id,
           input.delivery_reference,
           input.moisture_percent,
           input.screen_size,
           input.defects_percent,
+          actor.organizationId,
         ],
       );
       return insertedLot;
-    });
+    }, actor);
   }
 
-  async listDirectAgreements(listQuery: ListQueryParams): Promise<unknown> {
+  async listDirectAgreements(listQuery: ListQueryParams, actor: AuthContext): Promise<unknown> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
-    const supplierId = toIntFilter(listQuery.filters, "supplier_id");
+    const supplierId = toUuidFilter(listQuery.filters, "supplier_id");
+
+    values.push(actor.organizationId);
+    whereClauses.push(`da.organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -201,12 +220,14 @@ export class ProcurementService {
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    const countResult = await query<{ total: number }>(
-      `SELECT COUNT(*)::int AS total FROM direct_agreements ${whereSql}`,
+    const countResult = await withActor<{ total: number }>(
+      actor,
+      `SELECT COUNT(*)::int AS total FROM direct_agreements da ${whereSql}`,
       values,
     );
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT
         da.*,
@@ -222,12 +243,15 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async listAuctionLots(listQuery: ListQueryParams): Promise<unknown> {
+  async listAuctionLots(listQuery: ListQueryParams, actor: AuthContext): Promise<unknown> {
     const whereClauses: string[] = ["l.source = 'auction'"];
     const values: unknown[] = [];
-    const marketingAgentId = toIntFilter(listQuery.filters, "marketing_agent_id");
-    const gradeId = toIntFilter(listQuery.filters, "grade_id");
-    const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
+    const marketingAgentId = toUuidFilter(listQuery.filters, "marketing_agent_id");
+    const gradeId = toUuidFilter(listQuery.filters, "grade_id");
+    const warehouseId = toUuidFilter(listQuery.filters, "warehouse_id");
+
+    values.push(actor.organizationId);
+    whereClauses.push(`l.organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -257,7 +281,8 @@ export class ProcurementService {
     }
 
     const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `
       SELECT COUNT(*)::int AS total
       FROM lots l
@@ -269,7 +294,8 @@ export class ProcurementService {
     );
 
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT
         l.id,
@@ -302,13 +328,16 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async listDirectDeliveries(listQuery: ListQueryParams): Promise<unknown> {
+  async listDirectDeliveries(listQuery: ListQueryParams, actor: AuthContext): Promise<unknown> {
     const whereClauses: string[] = ["l.source = 'direct'"];
     const values: unknown[] = [];
-    const supplierId = toIntFilter(listQuery.filters, "supplier_id");
-    const agreementId = toIntFilter(listQuery.filters, "agreement_id");
-    const gradeId = toIntFilter(listQuery.filters, "grade_id");
-    const warehouseId = toIntFilter(listQuery.filters, "warehouse_id");
+    const supplierId = toUuidFilter(listQuery.filters, "supplier_id");
+    const agreementId = toUuidFilter(listQuery.filters, "agreement_id");
+    const gradeId = toUuidFilter(listQuery.filters, "grade_id");
+    const warehouseId = toUuidFilter(listQuery.filters, "warehouse_id");
+
+    values.push(actor.organizationId);
+    whereClauses.push(`l.organization_id = $${values.length}`);
 
     if (listQuery.search) {
       values.push(`%${escapeLikeQuery(listQuery.search)}%`);
@@ -342,7 +371,8 @@ export class ProcurementService {
     }
 
     const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
-    const countResult = await query<{ total: number }>(
+    const countResult = await withActor<{ total: number }>(
+      actor,
       `
       SELECT COUNT(*)::int AS total
       FROM direct_deliveries dd
@@ -355,7 +385,8 @@ export class ProcurementService {
     );
 
     values.push(listQuery.pageSize, listQuery.offset);
-    const result = await query(
+    const result = await withActor(
+      actor,
       `
       SELECT
         dd.id,
@@ -395,47 +426,61 @@ export class ProcurementService {
     return buildPaginatedResult(result.rows, Number(countResult.rows[0].total), listQuery);
   }
 
-  async getReferenceData(): Promise<unknown> {
+  async getReferenceData(actor: AuthContext): Promise<unknown> {
     const [suppliersResult, marketingAgentsResult, warehousesResult, gradesResult, bagTypesResult, agreementsResult] =
       await Promise.all([
-        query(
+        withActor(
+          actor,
           `
           SELECT id, name, supplier_type
           FROM suppliers
-          WHERE supplier_type <> 'auction_agent'
+          WHERE supplier_type <> 'auction_agent' AND organization_id = $1
           ORDER BY name ASC
           `,
+          [actor.organizationId],
         ),
-        query(
+        withActor(
+          actor,
           `
           SELECT id, name, supplier_type
           FROM suppliers
-          WHERE supplier_type = 'auction_agent'
+          WHERE supplier_type = 'auction_agent' AND organization_id = $1
           ORDER BY name ASC
           `,
+          [actor.organizationId],
         ),
-        query(
+        withActor(
+          actor,
           `
           SELECT id, name, location
           FROM warehouses
+          WHERE organization_id = $1
           ORDER BY name ASC
           `,
+          [actor.organizationId],
         ),
-        query(
+        withActor(
+          actor,
           `
           SELECT id, code, description
           FROM grades
+          WHERE organization_id = $1
           ORDER BY code ASC
           `,
+          [actor.organizationId],
         ),
-        query(
+        withActor(
+          actor,
           `
           SELECT id, name, weight_kg
           FROM bag_types
+          WHERE organization_id = $1
           ORDER BY weight_kg ASC, name ASC
           `,
+          [actor.organizationId],
         ),
-        query(
+        withActor(
+          actor,
           `
           SELECT
             da.id,
@@ -446,9 +491,11 @@ export class ProcurementService {
             s.name AS supplier_name
           FROM direct_agreements da
           JOIN suppliers s ON s.id = da.supplier_id
+          WHERE da.organization_id = $1
           ORDER BY da.created_at DESC, da.id DESC
           LIMIT 500
           `,
+          [actor.organizationId],
         ),
       ]);
 

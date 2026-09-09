@@ -6,15 +6,19 @@
   "scripts": {
     "dev": "nodemon",
     "build": "tsc -p tsconfig.json",
+    "vercel-build": "prisma generate",
     "start": "node dist/server.js",
     "check": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:migrate:deploy": "prisma migrate deploy"
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@emailjs/nodejs": "^5.0.2",
-    "@prisma/client": "^7.4.0",
+    "@prisma/client": "^7.4.2",
     "argon2": "^0.44.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -23,9 +27,11 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
     "node-cron": "^4.2.1",
     "pg": "^8.18.0",
     "winston": "^3.19.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -33,12 +39,18 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
     "@types/node": "^25.2.3",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.16.0",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "dotenv-cli": "^11.0.0",
     "nodemon": "^3.1.10",
-    "prisma": "^7.4.0",
+    "prisma": "^7.5.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }
