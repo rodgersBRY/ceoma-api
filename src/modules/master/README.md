@@ -40,6 +40,17 @@ Owns core reference data used by all transactional modules:
 - `PUT /api/v1/master/bag-types/:id` (admin only)
 - `DELETE /api/v1/master/bag-types/:id` (admin only)
 
+### Bulk import
+
+Each entity also supports bulk create from a spreadsheet:
+
+- `POST /api/v1/master/<entity>/import` — multipart, field name `file`. Accepts `.xlsx`, `.xls`, `.csv` up to 5MB / 5,000 rows.
+- `GET /api/v1/master/<entity>/import-template` — downloads a `.csv` header/example template for that entity.
+
+`<entity>` is one of `suppliers`, `buyers`, `warehouses`, `grades`, `bag-types`.
+
+Behavior: rows are validated with the same Zod schema used by the single-record create endpoint. Rows matching an existing record's natural key (`name`, or `code` for grades — case-insensitive, trimmed, scoped to the org) are skipped, not updated. Invalid rows don't block valid ones — the response reports `inserted` / `skipped` / `errors` per row (1-indexed to match spreadsheet row numbers, header = row 1). See `master.bulkImport.ts` for the shared engine (`runBulkImport`) that all five entities configure into.
+
 ## Configuration Notes
 
 - Depends on shared DB config in `src/db/pool.ts`.

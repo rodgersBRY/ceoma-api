@@ -1,8 +1,16 @@
 import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
+import * as XLSX from "xlsx";
 import { getTestApp } from "../testApp.js";
 import { authHeader, provisionOrgAndAdmin, uniqueEmail } from "../factories.js";
+
+function buildXlsxBuffer(headers: string[], rows: (string | number)[][]): Buffer {
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1");
+  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
 
 const app = getTestApp();
 
@@ -261,6 +269,192 @@ describe("master integration", () => {
 
       expect(res.status).toBe(400);
       expect(res.body.issues).toBeDefined();
+    });
+  });
+
+  describe("bulk import", () => {
+    it("imports suppliers with partial success: valid, duplicate, and invalid rows", async () => {
+      const org = await provisionOrgAndAdmin();
+
+      const existingRes = await request(app)
+        .post("/api/v1/master/suppliers")
+        .set(authHeader(org.accessToken))
+        .send({ name: "Existing Supplier", type: "mill", country: "Kenya" });
+      expect(existingRes.status).toBe(201);
+
+      const buffer = buildXlsxBuffer(
+        ["name", "type", "country"],
+        [
+          ["New Supplier One", "mill", "Kenya"],
+          ["  existing supplier  ", "mill", "Kenya"],
+          ["", "mill", "Kenya"],
+        ],
+      );
+
+      const res = await request(app)
+        .post("/api/v1/master/suppliers/import")
+        .set(authHeader(org.accessToken))
+        .attach("file", buffer, "suppliers.xlsx");
+
+      expect(res.status).toBe(200);
+      expect(res.body.total_rows).toBe(3);
+      expect(res.body.inserted_count).toBe(1);
+      expect(res.body.skipped_count).toBe(1);
+      expect(res.body.error_count).toBe(1);
+      expect(res.body.skipped[0].row).toBe(3);
+      expect(res.body.skipped[0].reason).toContain("Duplicate");
+      expect(res.body.errors[0].row).toBe(4);
+
+      const listRes = await request(app)
+        .get("/api/v1/master/suppliers")
+        .set(authHeader(org.accessToken));
+      expect(
+        listRes.body.data.map((s: { name: string }) => s.name),
+      ).toContain("New Supplier One");
+    });
+
+    it("skips a duplicate without updating the existing row's fields", async () => {
+      const org = await provisionOrgAndAdmin();
+
+      const createRes = await request(app)
+        .post("/api/v1/master/buyers")
+        .set(authHeader(org.accessToken))
+        .send({ name: "Duplicate Test Buyer", country: "Kenya" });
+      expect(createRes.status).toBe(201);
+
+      const buffer = buildXlsxBuffer(
+        ["name", "country"],
+        [["Duplicate Test Buyer", "Uganda"]],
+      );
+
+      const res = await request(app)
+        .post("/api/v1/master/buyers/import")
+        .set(authHeader(org.accessToken))
+        .attach("file", buffer, "buyers.xlsx");
+
+      expect(res.status).toBe(200);
+      expect(res.body.skipped_count).toBe(1);
+      expect(res.body.inserted_count).toBe(0);
+
+      const listRes = await request(app)
+        .get("/api/v1/master/buyers")
+        .set(authHeader(org.accessToken));
+      const buyer = listRes.body.data.find(
+        (b: { name: string }) => b.name === "Duplicate Test Buyer",
+      );
+      expect(buyer.country).toBe("Kenya");
+    });
+
+    it("does not skip a name that exists in a different org", async () => {
+      const orgA = await provisionOrgAndAdmin();
+      const orgB = await provisionOrgAndAdmin();
+
+      const createRes = await request(app)
+        .post("/api/v1/master/warehouses")
+        .set(authHeader(orgA.accessToken))
+        .send({ name: "Shared Warehouse Name" });
+      expect(createRes.status).toBe(201);
+
+      const buffer = buildXlsxBuffer(
+        ["name", "location"],
+        [["Shared Warehouse Name", "Nairobi"]],
+      );
+
+      const res = await request(app)
+        .post("/api/v1/master/warehouses/import")
+        .set(authHeader(orgB.accessToken))
+        .attach("file", buffer, "warehouses.xlsx");
+
+      expect(res.status).toBe(200);
+      expect(res.body.inserted_count).toBe(1);
+      expect(res.body.skipped_count).toBe(0);
+    });
+
+    it("dedupes grades by code and rejects a file missing a required column", async () => {
+      const org = await provisionOrgAndAdmin();
+
+      const missingColumnBuffer = buildXlsxBuffer(
+        ["description"],
+        [["Large bean, top grade"]],
+      );
+      const missingColumnRes = await request(app)
+        .post("/api/v1/master/grades/import")
+        .set(authHeader(org.accessToken))
+        .attach("file", missingColumnBuffer, "grades.xlsx");
+      expect(missingColumnRes.status).toBe(400);
+      expect(missingColumnRes.body.message).toContain("code");
+
+      const uniqueCode = `CUSTOM-${randomUUID().slice(0, 8)}`;
+      const buffer = buildXlsxBuffer(
+        ["code", "description"],
+        [
+          [uniqueCode, "Top grade"],
+          [uniqueCode.toLowerCase(), "Duplicate of the row above, within the same file"],
+        ],
+      );
+      const res = await request(app)
+        .post("/api/v1/master/grades/import")
+        .set(authHeader(org.accessToken))
+        .attach("file", buffer, "grades.xlsx");
+
+      expect(res.status).toBe(200);
+      expect(res.body.inserted_count).toBe(1);
+      expect(res.body.skipped_count).toBe(1);
+      expect(res.body.skipped[0].reason).toContain("within the uploaded file");
+    });
+
+    it("parses .csv the same way as .xlsx and coerces numeric columns", async () => {
+      const org = await provisionOrgAndAdmin();
+
+      const csv = "name,weight_kg\nJute Sack 60kg,60\n";
+      const res = await request(app)
+        .post("/api/v1/master/bag-types/import")
+        .set(authHeader(org.accessToken))
+        .attach("file", Buffer.from(csv, "utf-8"), "bag-types.csv");
+
+      expect(res.status).toBe(200);
+      expect(res.body.inserted_count).toBe(1);
+      expect(res.body.errors).toEqual([]);
+    });
+
+    it("rejects a file over the row cap (400)", async () => {
+      const org = await provisionOrgAndAdmin();
+
+      const rows = Array.from({ length: 5001 }, (_, i) => [`Supplier ${i}`, "mill", "Kenya"]);
+      const buffer = buildXlsxBuffer(["name", "type", "country"], rows);
+
+      const res = await request(app)
+        .post("/api/v1/master/suppliers/import")
+        .set(authHeader(org.accessToken))
+        .attach("file", buffer, "suppliers.xlsx");
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("maximum is 5000");
+    });
+
+    it("rejects a non-admin/compliance user (403)", async () => {
+      const org = await provisionOrgAndAdmin();
+      const traderToken = await loginAsTrader(org.accessToken);
+      const buffer = buildXlsxBuffer(["name"], [["Trader's Supplier"]]);
+
+      const res = await request(app)
+        .post("/api/v1/master/suppliers/import")
+        .set(authHeader(traderToken))
+        .attach("file", buffer, "suppliers.xlsx");
+
+      expect(res.status).toBe(403);
+    });
+
+    it("returns a downloadable csv template with the expected headers", async () => {
+      const org = await provisionOrgAndAdmin();
+
+      const res = await request(app)
+        .get("/api/v1/master/suppliers/import-template")
+        .set(authHeader(org.accessToken));
+
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("text/csv");
+      expect(res.text.split("\n")[0]).toBe("name,type,country");
     });
   });
 });

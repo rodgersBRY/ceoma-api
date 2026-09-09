@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 
 import { ApiError } from "../../common/errors/ApiError.js";
 import { parseListQuery } from "../../common/pagination.js";
+import type { AuthContext } from "../../types/auth.js";
+import type { BulkImportResult } from "./master.bulkImport.js";
 import { masterService } from "./master.service.js";
 import {
   bagTypeSchema,
@@ -11,7 +13,10 @@ import {
   warehouseSchema,
 } from "./master.validation.js";
 
-function parseEntityId(rawValue: string | string[] | undefined, entityLabel: string): string {
+function parseEntityId(
+  rawValue: string | string[] | undefined,
+  entityLabel: string,
+): string {
   const candidate = Array.isArray(rawValue) ? rawValue[0] : rawValue;
   if (!candidate || !/^[0-9a-f-]{36}$/i.test(candidate)) {
     throw new ApiError(400, `${entityLabel} id must be a valid UUID`);
@@ -55,9 +60,9 @@ export class MasterController {
     }
 
     const supplierId = parseEntityId(req.params.id, "Supplier");
-    
+
     const deleted = await masterService.deleteSupplier(supplierId, req.auth);
-    
+
     res.status(200).json(deleted);
   }
 
@@ -179,7 +184,7 @@ export class MasterController {
     });
 
     const rows = await masterService.listWarehouses(query, req.auth);
-    
+
     res.json(rows);
   }
 
@@ -189,9 +194,9 @@ export class MasterController {
     }
 
     const payload = gradeSchema.parse(req.body);
-    
+
     const created = await masterService.createGrade(payload, req.auth);
-    
+
     res.status(201).json(created);
   }
 
@@ -285,8 +290,110 @@ export class MasterController {
     });
 
     const rows = await masterService.listBagTypes(query, req.auth);
-    
+
     res.json(rows);
+  }
+
+  // BULK IMPORT
+  private async runImport(
+    req: Request,
+    res: Response,
+    importFn: (
+      fileBuffer: Buffer,
+      filename: string,
+      actor: AuthContext,
+    ) => Promise<BulkImportResult>,
+  ): Promise<void> {
+    if (!req.auth) {
+      throw new ApiError(401, "Authentication required");
+    }
+    if (!req.file) {
+      throw new ApiError(400, "No file was uploaded");
+    }
+
+    const result = await importFn(
+      req.file.buffer,
+      req.file.originalname,
+      req.auth,
+    );
+
+    res.status(200).json(result);
+  }
+
+  private sendCsvTemplate(res: Response, filename: string, csv: string): void {
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", "text/csv");
+    res.send(csv);
+  }
+
+  async importSuppliers(req: Request, res: Response): Promise<void> {
+    await this.runImport(req, res, (buffer, filename, actor) =>
+      masterService.importSuppliers(buffer, filename, actor),
+    );
+  }
+
+  downloadSuppliersTemplate(_req: Request, res: Response): void {
+    this.sendCsvTemplate(
+      res,
+      "suppliers-import-template.csv",
+      masterService.getSuppliersImportTemplate(),
+    );
+  }
+
+  async importBuyers(req: Request, res: Response): Promise<void> {
+    await this.runImport(req, res, (buffer, filename, actor) =>
+      masterService.importBuyers(buffer, filename, actor),
+    );
+  }
+
+  downloadBuyersTemplate(_req: Request, res: Response): void {
+    this.sendCsvTemplate(
+      res,
+      "buyers-import-template.csv",
+      masterService.getBuyersImportTemplate(),
+    );
+  }
+
+  async importWarehouses(req: Request, res: Response): Promise<void> {
+    await this.runImport(req, res, (buffer, filename, actor) =>
+      masterService.importWarehouses(buffer, filename, actor),
+    );
+  }
+
+  downloadWarehousesTemplate(_req: Request, res: Response): void {
+    this.sendCsvTemplate(
+      res,
+      "warehouses-import-template.csv",
+      masterService.getWarehousesImportTemplate(),
+    );
+  }
+
+  async importGrades(req: Request, res: Response): Promise<void> {
+    await this.runImport(req, res, (buffer, filename, actor) =>
+      masterService.importGrades(buffer, filename, actor),
+    );
+  }
+
+  downloadGradesTemplate(_req: Request, res: Response): void {
+    this.sendCsvTemplate(
+      res,
+      "grades-import-template.csv",
+      masterService.getGradesImportTemplate(),
+    );
+  }
+
+  async importBagTypes(req: Request, res: Response): Promise<void> {
+    await this.runImport(req, res, (buffer, filename, actor) =>
+      masterService.importBagTypes(buffer, filename, actor),
+    );
+  }
+
+  downloadBagTypesTemplate(_req: Request, res: Response): void {
+    this.sendCsvTemplate(
+      res,
+      "bag-types-import-template.csv",
+      masterService.getBagTypesImportTemplate(),
+    );
   }
 }
 
