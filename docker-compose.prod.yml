@@ -1,16 +1,16 @@
-name: ceoms
+name: kahawatrade
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: ceoms-postgres
+    container_name: kahawatrade-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER:     ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB:       ${POSTGRES_DB}
     volumes:
-      - ceoms_pg_data:/var/lib/postgresql/data
+      - kahawatrade_pg_data:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
@@ -20,16 +20,16 @@ services:
       retries: 5
 
   api:
-    image: ${API_IMAGE:-ceoms-api:latest}
+    image: ${API_IMAGE:-ghcr.io/rodgersbry/kahawatrade-api:latest}
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ceoms-api
+    container_name: kahawatrade-api
     restart: unless-stopped
-    env_file: ${API_ENV_FILE:-.env}
+    env_file: .env.prod
     environment:
       NODE_ENV: production
-      # Overrides the DATABASE_URL in api/.env so it resolves to the
+      # Overrides the DATABASE_URL in api/.env.prod so it resolves to the
       # postgres container hostname instead of localhost
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
@@ -46,8 +46,35 @@ services:
       retries: 3
       start_period: 40s
 
+  # nginx:
+  #   image: nginx:1.27-alpine
+  #   container_name: kahawatrade-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - certbot-www:/var/www/certbot:ro
+  #     - certbot-conf:/etc/letsencrypt:ro
+  #   depends_on:
+  #     - api
+  #   networks:
+  #     - internal
+
+  # certbot:
+  #   image: certbot/certbot:latest
+  #   container_name: kahawatrade-certbot
+  #   volumes:
+  #     - certbot-www:/var/www/certbot
+  #     - certbot-conf:/etc/letsencrypt
+  #   # Auto-renews certificates every 12 hours (Let's Encrypt certs expire in 90 days)
+  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
+
 volumes:
-  ceoms_pg_data:
+  kahawatrade_pg_data:
+  # certbot-www:
+  # certbot-conf:
 
 networks:
   internal:

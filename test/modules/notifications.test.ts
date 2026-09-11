@@ -89,7 +89,7 @@ describe("notificationsService", () => {
       notificationsService.notifyApiKeyExpiring({
         organizationId: org.organizationId,
         keyName: "CI integration key",
-        keyPrefix: "ceoms_",
+        keyPrefix: "kahawatrade_",
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3),
         daysToExpiry: 3,
         ownerEmail: org.email,

@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   registerNotificationCrons();
 
   const server = app.listen(env.port, () => {
-    logger.info(`CEOMS API running on http://localhost:${env.port}`);
+    logger.info(`Kahawa Trade API running on http://localhost:${env.port}`);
   });
 
   const shutdown = async (signal: string): Promise<void> => {

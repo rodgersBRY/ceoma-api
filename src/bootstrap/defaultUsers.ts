@@ -10,32 +10,32 @@ export type BootstrapUserSeed = {
 // Update these test accounts as needed for local/dev initialization.
 export const bootstrapUsers: BootstrapUserSeed[] = [
   {
-    email: "admin@ceoms.test",
-    fullName: "CEOMS Administrator",
+    email: "admin@kahawatrade.test",
+    fullName: "Kahawa Trade Administrator",
     role: "admin",
     password: "AdminTest#1234",
   },
   {
-    email: "trader@ceoms.test",
-    fullName: "CEOMS Trader",
+    email: "trader@kahawatrade.test",
+    fullName: "Kahawa Trade Trader",
     role: "trader",
     password: "TraderTest#1234",
   },
   {
-    email: "warehouse@ceoms.test",
-    fullName: "CEOMS Warehouse",
+    email: "warehouse@kahawatrade.test",
+    fullName: "Kahawa Trade Warehouse",
     role: "warehouse",
     password: "WarehouseTest#1234",
   },
   {
-    email: "finance@ceoms.test",
-    fullName: "CEOMS Finance",
+    email: "finance@kahawatrade.test",
+    fullName: "Kahawa Trade Finance",
     role: "finance",
     password: "FinanceTest#1234",
   },
   {
-    email: "compliance@ceoms.test",
-    fullName: "CEOMS Compliance",
+    email: "compliance@kahawatrade.test",
+    fullName: "Kahawa Trade Compliance",
     role: "compliance",
     password: "ComplianceTest#1234",
   },

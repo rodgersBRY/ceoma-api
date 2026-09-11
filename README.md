@@ -1,4 +1,4 @@
-# Coffee Export Operations Management System (CEOMS)
+# Kahawa Trade
 
 Phase 1 backend scaffold for a lot-native coffee export operations system.
 
@@ -28,7 +28,7 @@ Each module has its own `README.md` under `src/modules/<module>/README.md`.
 
 ## Multi-tenant model
 
-CEOMS runs in shared-database, row-level isolation mode:
+Kahawa Trade runs in shared-database, row-level isolation mode:
 
 - Every business table includes `organization_id`.
 - JWTs and API keys resolve an `organizationId` that scopes every query.
@@ -214,11 +214,11 @@ On first API startup (when `users` table is empty), the server auto-creates one 
 
 Default seeded accounts include:
 
-- `admin@ceoms.test` (`admin`)
-- `trader@ceoms.test` (`trader`)
-- `warehouse@ceoms.test` (`warehouse`)
-- `finance@ceoms.test` (`finance`)
-- `compliance@ceoms.test` (`compliance`)
+- `admin@kahawatrade.test` (`admin`)
+- `trader@kahawatrade.test` (`trader`)
+- `warehouse@kahawatrade.test` (`warehouse`)
+- `finance@kahawatrade.test` (`finance`)
+- `compliance@kahawatrade.test` (`compliance`)
 
 Edit credentials in `src/bootstrap/defaultUsers.ts` before first run if needed.
 
@@ -248,7 +248,7 @@ This is idempotent and safe to run on every startup (no duplicate inserts for th
 
 4. Browser-origin mutating requests (`POST/PUT/PATCH/DELETE`):
 - Include header `x-csrf-token: <csrf_token>`.
-- Ensure cookie `ceoms_csrf` is sent.
+- Ensure cookie `kahawatrade_csrf` is sent.
 
 ## Idempotency Contract
 
@@ -381,17 +381,26 @@ npm run prisma:migrate:deploy
 - Shipment status cannot move backwards
 - Shipment creation freezes a traceability snapshot for auditability
 
-## Production deploy runbook (Vercel web + VPS API)
+## Production deploy runbook (Next.js web + VPS API)
 
-If changes work in development but not production, the VPS is usually running an older API container image.
+Deployment to the VPS is manual — CI only builds, tests, and publishes the image to GHCR (`ghcr.io/rodgersbry/kahawatrade-api`); nothing SSHes into the VPS automatically.
 
-Immediate manual redeploy on VPS:
+`docker-compose.prod.yml` supports pulling a pinned image tag via `API_IMAGE` (falls back to `:latest` if unset), or building from source if you skip the `image:` line entirely:
 
 ```bash
-cd /opt/ceoms/api
-docker compose -f docker-compose.prod.yml build --no-cache api
+cd /opt/kahawatrade/api
+export API_IMAGE=ghcr.io/rodgersbry/kahawatrade-api:<git-sha-or-tag>
+docker compose -f docker-compose.prod.yml pull api
 docker compose -f docker-compose.prod.yml up -d --force-recreate api
 docker compose -f docker-compose.prod.yml logs api --tail=100
+```
+
+Or rebuild from source instead of pulling:
+
+```bash
+cd /opt/kahawatrade/api
+docker compose -f docker-compose.prod.yml build --no-cache api
+docker compose -f docker-compose.prod.yml up -d --force-recreate api
 ```
 
 Verify new routes exist:
@@ -404,38 +413,3 @@ curl -i -X PATCH http://localhost:4000/api/v1/auth/users/1/status \
 ```
 
 For route existence checks without auth, expected response is `401` (not `404`).
-
-## CI/CD automation for VPS deployment
-
-This repository includes:
-
-- GitHub workflow: `.github/workflows/api-ci-cd.yml`
-- Manual image redeploy script: `scripts/redeploy-prod.sh`
-
-Workflow behavior:
-
-1. Run `npm run check` and `npm run build`
-2. Build and push API image to GHCR
-3. SSH to VPS and redeploy API container using pushed image tag
-4. Run local health check on VPS (`/api/v1/health`)
-
-Required GitHub repository secrets:
-
-- `VPS_HOST`
-- `VPS_SSH_USER`
-- `VPS_SSH_KEY`
-- `VPS_API_DIR` (example: `/opt/ceoms/api`)
-- `GHCR_USER`
-- `GHCR_PAT` (PAT with `read:packages`)
-
-`docker-compose.prod.yml` supports image pinning using:
-
-- `API_IMAGE` (example: `ghcr.io/<org>/ceoms-api:<git-sha>`)
-
-You can manually redeploy any built image tag on VPS:
-
-```bash
-cd /opt/ceoms/api
-export API_IMAGE=ghcr.io/<org>/ceoms-api:<tag>
-./scripts/redeploy-prod.sh
-```

@@ -40,7 +40,7 @@ export const logger = createLogger({
   level: env.logLevel,
   format: isDevelopment ? devFormat : prodFormat,
   defaultMeta: {
-    service: "ceoms-api",
+    service: "kahawatrade-api",
     env: env.nodeEnv,
   },
   transports: [new transports.Console()],

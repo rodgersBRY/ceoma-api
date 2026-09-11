@@ -5,7 +5,7 @@ import { Response } from "express";
 import { env } from "../../config/env.js";
 import { ApiError } from "../errors/ApiError.js";
 
-const COOKIE_NAME = "ceoms_csrf";
+const COOKIE_NAME = "kahawatrade_csrf";
 
 function signToken(rawToken: string): string {
   return crypto

@@ -17,7 +17,7 @@ if (existsSync(".env.test.local")) {
 }
 
 process.env.NODE_ENV = "test";
-process.env.DATABASE_URL ??= "postgresql://postgres:postgres@localhost:5434/ceoms_test";
+process.env.DATABASE_URL ??= "postgresql://postgres:postgres@localhost:5434/kahawatrade_test";
 process.env.DIRECT_URL ??= process.env.DATABASE_URL;
 process.env.DB_SSL_MODE = "disable";
 
@@ -34,7 +34,7 @@ process.env.AUTH_RATE_LIMIT_MAX = "100000";
 process.env.NOTIFICATIONS_CRON_ENABLED = "false";
 process.env.IDEMPOTENCY_ENABLED = "false";
 process.env.LOG_LEVEL = "silent";
-process.env.SUPER_ADMIN_BOOTSTRAP_EMAIL = "super-admin@test.ceoms.local";
+process.env.SUPER_ADMIN_BOOTSTRAP_EMAIL = "super-admin@test.kahawatrade.local";
 process.env.SUPER_ADMIN_BOOTSTRAP_PASSWORD = "Sup3rSecureAdminPassw0rd!";
 
 // Hard guard: refuse to run against anything that isn't obviously a test
