@@ -56,11 +56,7 @@ export function createApp(): Express {
     .use(apiRateLimiter)
     .use(csrfProtection);
 
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "kahawatrade-api" });
-  });
-
-  app.get("/api/v1/health", (_req, res) => {
+  app.get("/v1/health", (_req, res) => {
     res.json({ ok: true, service: "kahawatrade-api", version: "v1" });
   });
 
