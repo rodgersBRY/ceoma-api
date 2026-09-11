@@ -1,16 +1,16 @@
-name: ceoms
+name: kahawatrade
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: ceoms-postgres
+    container_name: kahawatrade-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER:     ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB:       ${POSTGRES_DB}
     volumes:
-      - ceoms_pg_data:/var/lib/postgresql/data
+      - kahawatrade_pg_data:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ceoms-api
+    container_name: kahawatrade-api
     restart: unless-stopped
     env_file: .env.prod
     environment:
@@ -47,7 +47,7 @@ services:
 
   # nginx:
   #   image: nginx:1.27-alpine
-  #   container_name: ceoms-nginx
+  #   container_name: kahawatrade-nginx
   #   restart: unless-stopped
   #   ports:
   #     - "80:80"
@@ -63,7 +63,7 @@ services:
 
   # certbot:
   #   image: certbot/certbot:latest
-  #   container_name: ceoms-certbot
+  #   container_name: kahawatrade-certbot
   #   volumes:
   #     - certbot-www:/var/www/certbot
   #     - certbot-conf:/etc/letsencrypt
@@ -71,7 +71,7 @@ services:
   #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
 
 volumes:
-  ceoms_pg_data:
+  kahawatrade_pg_data:
   # certbot-www:
   # certbot-conf:
 

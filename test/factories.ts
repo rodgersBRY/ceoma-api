@@ -3,7 +3,7 @@ import request from "supertest";
 import { getTestApp } from "./testApp.js";
 
 export function uniqueEmail(prefix = "user"): string {
-  return `${prefix}-${randomUUID()}@test.ceoms.local`;
+  return `${prefix}-${randomUUID()}@test.kahawatrade.local`;
 }
 
 let cachedSuperAdminToken: string | undefined;

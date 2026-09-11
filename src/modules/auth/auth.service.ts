@@ -612,7 +612,7 @@ export class AuthService {
     }
 
     const secret = secureRandomToken(32);
-    const prefix = `ceoms_${secret.slice(0, 8)}`;
+    const prefix = `kahawatrade_${secret.slice(0, 8)}`;
     const apiKey = `${prefix}.${secureRandomToken(24)}`;
     const keyHash = hashSha256(apiKey);
     const keyId = crypto.randomUUID();

@@ -16,8 +16,8 @@ export function signSuperAdminToken(payload: {
 }): string {
   const options: SignOptions = {
     expiresIn: payload.expiresIn ?? (env.superAdminJwtTtl as SignOptions["expiresIn"]),
-    issuer: "ceoms-internal",
-    audience: "ceoms-super-admin",
+    issuer: "kahawatrade-internal",
+    audience: "kahawatrade-super-admin",
   };
 
   return jwt.sign(
@@ -46,8 +46,8 @@ function assertClaims(payload: string | JwtPayload | undefined): asserts payload
 export function verifySuperAdminToken(token: string): SuperAdminClaims {
   try {
     const decoded = jwt.verify(token, env.superAdminJwtSecret, {
-      issuer: "ceoms-internal",
-      audience: "ceoms-super-admin",
+      issuer: "kahawatrade-internal",
+      audience: "kahawatrade-super-admin",
     });
 
     assertClaims(decoded);

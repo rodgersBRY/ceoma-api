@@ -57,11 +57,11 @@ export function createApp(): Express {
     .use(csrfProtection);
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "ceoms-api" });
+    res.json({ ok: true, service: "kahawatrade-api" });
   });
 
   app.get("/api/v1/health", (_req, res) => {
-    res.json({ ok: true, service: "ceoms-api", version: "v1" });
+    res.json({ ok: true, service: "kahawatrade-api", version: "v1" });
   });
 
   registerRoutes(app);

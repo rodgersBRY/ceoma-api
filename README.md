@@ -1,4 +1,4 @@
-# Coffee Export Operations Management System (CEOMS)
+# Kahawa Trade
 
 Phase 1 backend scaffold for a lot-native coffee export operations system.
 
@@ -28,7 +28,7 @@ Each module has its own `README.md` under `src/modules/<module>/README.md`.
 
 ## Multi-tenant model
 
-CEOMS runs in shared-database, row-level isolation mode:
+Kahawa Trade runs in shared-database, row-level isolation mode:
 
 - Every business table includes `organization_id`.
 - JWTs and API keys resolve an `organizationId` that scopes every query.
@@ -214,11 +214,11 @@ On first API startup (when `users` table is empty), the server auto-creates one 
 
 Default seeded accounts include:
 
-- `admin@ceoms.test` (`admin`)
-- `trader@ceoms.test` (`trader`)
-- `warehouse@ceoms.test` (`warehouse`)
-- `finance@ceoms.test` (`finance`)
-- `compliance@ceoms.test` (`compliance`)
+- `admin@kahawatrade.test` (`admin`)
+- `trader@kahawatrade.test` (`trader`)
+- `warehouse@kahawatrade.test` (`warehouse`)
+- `finance@kahawatrade.test` (`finance`)
+- `compliance@kahawatrade.test` (`compliance`)
 
 Edit credentials in `src/bootstrap/defaultUsers.ts` before first run if needed.
 
@@ -248,7 +248,7 @@ This is idempotent and safe to run on every startup (no duplicate inserts for th
 
 4. Browser-origin mutating requests (`POST/PUT/PATCH/DELETE`):
 - Include header `x-csrf-token: <csrf_token>`.
-- Ensure cookie `ceoms_csrf` is sent.
+- Ensure cookie `kahawatrade_csrf` is sent.
 
 ## Idempotency Contract
 
