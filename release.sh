@@ -88,10 +88,9 @@ git push origin main
 info "pushing tag $tag"
 git push origin "$tag"
 
-owner_repo="$(git remote get-url origin | sed -E 's#.*[:/]([^/]+/[^/]+)\.git#\1#')"
 info "done. CI will build and publish:"
-echo "  ghcr.io/${owner_repo}:latest"
-echo "  ghcr.io/${owner_repo}:$(git rev-parse --short HEAD)"
+echo "  ghcr.io/rodgersbry/kahawatrade-api:latest"
+echo "  ghcr.io/rodgersbry/kahawatrade-api:$(git rev-parse --short HEAD)"
 
 info "switching back to develop"
 git checkout develop
