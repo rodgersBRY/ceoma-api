@@ -320,7 +320,7 @@ npm run prisma:migrate:deploy
 - `POST /api/internal/v1/orgs/:orgId/impersonate`
 - `GET /api/internal/v1/revenue`
 - `GET /api/internal/v1/alerts`
-- `GET /api/v1/health`
+- `GET /v1/health`
 - `GET /api/v1/auth/csrf-token`
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
@@ -399,5 +399,5 @@ docker compose logs api --tail=100
 Verify:
 
 ```bash
-curl -i http://localhost:4000/api/v1/health
+curl -i http://localhost:4000/v1/health
 ```
