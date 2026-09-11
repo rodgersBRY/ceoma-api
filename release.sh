@@ -10,6 +10,9 @@ cd "$REPO_ROOT"
 info()  { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 error() { printf '\033[1;31mERROR:\033[0m %s\n' "$1" >&2; }
 
+# Formats piped commit descriptions ("seed x grades") as capitalized bullets.
+format_entries() { awk '{ if (NF) print "- " toupper(substr($0,1,1)) substr($0,2) }'; }
+
 # ── Preflight ─────────────────────────────────────────────────────────────
 
 if [[ -n "$(git status --porcelain)" ]]; then
@@ -77,6 +80,50 @@ if git rev-parse "$tag" >/dev/null 2>&1; then
   error "tag '$tag' already exists. Choose a different version."
   exit 1
 fi
+
+# ── Changelog ─────────────────────────────────────────────────────────────
+
+info "updating CHANGELOG.md"
+
+previous_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+if [[ -n "$previous_tag" ]]; then
+  changelog_range="${previous_tag}..HEAD"
+else
+  changelog_range="HEAD"
+fi
+
+raw_subjects="$(git log "$changelog_range" --no-merges --pretty=format:'%s')"
+
+added="$(echo "$raw_subjects" | grep -E '^FEAT: ' | sed -E 's/^FEAT: //' | format_entries || true)"
+fixed="$(echo "$raw_subjects" | grep -E '^FIX: ' | sed -E 's/^FIX: //' | format_entries || true)"
+security="$(echo "$raw_subjects" | grep -E '^SECURITY: ' | sed -E 's/^SECURITY: //' | format_entries || true)"
+
+changelog_entries=""
+[[ -n "$added" ]] && changelog_entries+="### Added"$'\n\n'"$added"$'\n\n'
+[[ -n "$fixed" ]] && changelog_entries+="### Fixed"$'\n\n'"$fixed"$'\n\n'
+[[ -n "$security" ]] && changelog_entries+="### Security"$'\n\n'"$security"$'\n\n'
+if [[ -z "$changelog_entries" ]]; then
+  changelog_entries="_No user-facing changes._"
+fi
+
+changelog_body=""
+if [[ -f CHANGELOG.md ]]; then
+  changelog_body="$(tail -n +2 CHANGELOG.md)"
+fi
+
+{
+  echo "# Changelog"
+  echo
+  echo "## ${tag} - $(date +%Y-%m-%d)"
+  echo
+  echo "$changelog_entries"
+  echo
+  echo "$changelog_body"
+} > CHANGELOG.md.tmp
+mv CHANGELOG.md.tmp CHANGELOG.md
+
+git add CHANGELOG.md
+git commit -m "DOCS: update changelog for release ${tag}"
 
 info "creating annotated tag $tag"
 git tag -a "$tag" -m "Release $tag"
