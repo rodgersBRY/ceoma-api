@@ -381,35 +381,23 @@ npm run prisma:migrate:deploy
 - Shipment status cannot move backwards
 - Shipment creation freezes a traceability snapshot for auditability
 
-## Production deploy runbook (Next.js web + VPS API)
+## Production deploy runbook (VPS)
 
-Deployment to the VPS is manual — CI only builds, tests, and publishes the image to GHCR (`ghcr.io/rodgersbry/kahawatrade-api`); nothing SSHes into the VPS automatically.
+Deployment is manual. The VPS runs its own `compose.yml` (not tracked in this repo, alongside a `Caddyfile` for TLS) with `postgres`, `api`, `frontend` (the web repo's image), and `caddy` services. CI only builds and publishes images to GHCR (`ghcr.io/rodgersbry/kahawatrade-api`) — nothing deploys automatically.
 
-`docker-compose.prod.yml` supports pulling a pinned image tag via `API_IMAGE` (falls back to `:latest` if unset), or building from source if you skip the `image:` line entirely:
+The `api` service requires both `DATABASE_URL` and `DIRECT_URL` in the VPS's `.env` — `prisma.config.ts` reads both eagerly at container startup (via `prisma migrate deploy` in the Docker `CMD`), even though this deployment has no connection pooler, so they're typically the same value pointing at the `postgres` service.
 
-```bash
-cd /opt/kahawatrade/api
-export API_IMAGE=ghcr.io/rodgersbry/kahawatrade-api:<git-sha-or-tag>
-docker compose -f docker-compose.prod.yml pull api
-docker compose -f docker-compose.prod.yml up -d --force-recreate api
-docker compose -f docker-compose.prod.yml logs api --tail=100
-```
-
-Or rebuild from source instead of pulling:
+To pull and redeploy the latest image on the VPS:
 
 ```bash
-cd /opt/kahawatrade/api
-docker compose -f docker-compose.prod.yml build --no-cache api
-docker compose -f docker-compose.prod.yml up -d --force-recreate api
+cd /opt/kahawatrade   # or wherever compose.yml lives
+docker compose pull api
+docker compose up -d --force-recreate api
+docker compose logs api --tail=100
 ```
 
-Verify new routes exist:
+Verify:
 
 ```bash
 curl -i http://localhost:4000/api/v1/health
-curl -i -X PATCH http://localhost:4000/api/v1/auth/users/1/status \
-  -H "content-type: application/json" \
-  -d '{"status":"active"}'
 ```
-
-For route existence checks without auth, expected response is `401` (not `404`).
