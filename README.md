@@ -380,3 +380,24 @@ npm run prisma:migrate:deploy
 - Shipment cannot over-fulfill contract quantity
 - Shipment status cannot move backwards
 - Shipment creation freezes a traceability snapshot for auditability
+
+## Production deploy runbook (VPS)
+
+Deployment is manual. The VPS runs its own `compose.yml` (not tracked in this repo, alongside a `Caddyfile` for TLS) with `postgres`, `api`, `frontend` (the web repo's image), and `caddy` services. CI only builds and publishes images to GHCR (`ghcr.io/rodgersbry/kahawatrade-api`) — nothing deploys automatically.
+
+The `api` service requires both `DATABASE_URL` and `DIRECT_URL` in the VPS's `.env` — `prisma.config.ts` reads both eagerly at container startup (via `prisma migrate deploy` in the Docker `CMD`), even though this deployment has no connection pooler, so they're typically the same value pointing at the `postgres` service.
+
+To pull and redeploy the latest image on the VPS:
+
+```bash
+cd /opt/kahawatrade   # or wherever compose.yml lives
+docker compose pull api
+docker compose up -d --force-recreate api
+docker compose logs api --tail=100
+```
+
+Verify:
+
+```bash
+curl -i http://localhost:4000/api/v1/health
+```
