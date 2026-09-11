@@ -15,18 +15,18 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: ceoms_test
+          POSTGRES_DB: kahawatrade_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d ceoms_test"
+          --health-cmd "pg_isready -U postgres -d kahawatrade_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ceoms_test
-      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ceoms_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kahawatrade_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/kahawatrade_test
       NODE_ENV: test
       JWT_ACCESS_SECRET: ci-access-secret-32-characters-minimum
       JWT_REFRESH_SECRET: ci-refresh-secret-32-characters-minimum
@@ -34,7 +34,7 @@ jobs:
       DATA_ENCRYPTION_KEY: QOXS0h7/79Gmiz/UMpcaHE0LrfwcCWLdBsx8WuUDLiw=
       CSRF_SECRET: ci-csrf-secret-32-characters-minimum-x
       CORS_ALLOWED_ORIGINS: http://localhost:3000
-      SUPER_ADMIN_BOOTSTRAP_EMAIL: super-admin@test.ceoms.local
+      SUPER_ADMIN_BOOTSTRAP_EMAIL: super-admin@test.kahawatrade.local
       SUPER_ADMIN_BOOTSTRAP_PASSWORD: Sup3rSecureAdminPassw0rd!
 
     steps:

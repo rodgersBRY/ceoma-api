@@ -32,8 +32,8 @@ export function signAccessToken(payload: {
 }): string {
   const options: SignOptions = {
     expiresIn: payload.expiresIn ?? (env.jwtAccessTtl as SignOptions["expiresIn"]),
-    issuer: "ceoms-api",
-    audience: "ceoms-clients",
+    issuer: "kahawatrade-api",
+    audience: "kahawatrade-clients",
   };
 
   return jwt.sign(
@@ -58,8 +58,8 @@ export function signRefreshToken(payload: {
 }): string {
   const options: SignOptions = {
     expiresIn: env.jwtRefreshTtl as SignOptions["expiresIn"],
-    issuer: "ceoms-api",
-    audience: "ceoms-clients",
+    issuer: "kahawatrade-api",
+    audience: "kahawatrade-clients",
   };
 
   return jwt.sign(
@@ -90,8 +90,8 @@ function isUuid(value: string): boolean {
 export function verifyAccessToken(token: string): AccessTokenClaims {
   try {
     const decoded = jwt.verify(token, env.jwtAccessSecret, {
-      issuer: "ceoms-api",
-      audience: "ceoms-clients",
+      issuer: "kahawatrade-api",
+      audience: "kahawatrade-clients",
     });
 
     assertClaims(decoded);
@@ -124,8 +124,8 @@ export function verifyAccessToken(token: string): AccessTokenClaims {
 export function verifyRefreshToken(token: string): RefreshTokenClaims {
   try {
     const decoded = jwt.verify(token, env.jwtRefreshSecret, {
-      issuer: "ceoms-api",
-      audience: "ceoms-clients",
+      issuer: "kahawatrade-api",
+      audience: "kahawatrade-clients",
     });
 
     assertClaims(decoded);
